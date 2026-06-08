@@ -1,15 +1,15 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Docs/Images/logo-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="Docs/Images/logo-light.png">
-  <img alt="Blinki — Delphi TUI Library" src="Docs/Images/logo-light.png" width="460">
+  <source media="(prefers-color-scheme: dark)" srcset="Assets/logo-blinki-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="Assets/logo-blinki-light.png">
+  <img alt="Blinki — Delphi TUI Library" src="Assets/logo-blinki-light.png" width="460">
 </picture>
 
 ### A pure-Delphi TUI framework for building rich, modern terminal applications on Windows.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Delphi](https://img.shields.io/badge/Delphi-12%20Alexandria-E62E2E.svg)](https://www.embarcadero.com/products/delphi)
+[![Delphi](https://img.shields.io/badge/Delphi-13.1%20Florence-E62E2E.svg)](https://www.embarcadero.com/products/delphi)
 [![Platform](https://img.shields.io/badge/platform-Win32-0a7bbb.svg)](#requirements)
 [![Language](https://img.shields.io/badge/language-Object%20Pascal-E62E2E.svg)](#)
 [![Dependencies](https://img.shields.io/badge/dependencies-none-success.svg)](#installation)
@@ -19,6 +19,68 @@
 > *"Blinki"* evokes the **blink** — the pulse of the cursor and the living animation that brings
 > text interfaces to life. Every app built with Blinki turns the terminal into a dynamic surface
 > of characters that update, blink, and come alive.
+
+---
+
+## Demo Gallery
+
+Sixteen complete demo applications live under [`Demos\`](Demos) and are aggregated by
+`Demos\Blinki.Demos.groupproj`. A selection of the highlights:
+
+<table>
+<tr>
+<td width="50%">
+
+**Dashboard** — log analytics with a custom data table, bar charts, sparklines and severity-colored overlays.
+
+<img alt="Dashboard demo" src="Demos/Dashboard/Screenshot.png">
+
+</td>
+<td width="50%">
+
+**CryptoTracker** — a real-time market watchlist with a live candlestick chart.
+
+<img alt="CryptoTracker demo" src="Demos/CryptoTracker/Screenshot.png">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**SysMonitor** — an htop-style system monitor: CPU/memory gauges, history sparklines, process table.
+
+<img alt="SysMonitor demo" src="Demos/SysMonitor/Screenshot.png">
+
+</td>
+<td width="50%">
+
+**WorldCup** — a dense live-sports dashboard with groups, standings, schedule and gradient FX.
+
+<img alt="WorldCup demo" src="Demos/WorldCup/Screenshot.png">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Tetris** — a full real-time game with SRS rotation, 7-bag randomizer and a colorful logo.
+
+<img alt="Tetris demo" src="Demos/Tetris/Screenshot.png">
+
+</td>
+<td width="50%">
+
+**EffectsShowcase** — gradient banners, typing animation, color waves and Matrix rain on tabbed pages.
+
+<img alt="EffectsShowcase demo" src="Demos/EffectsShowcase/Screenshot.png">
+
+</td>
+</tr>
+</table>
+
+> The full set also includes **Kanban**, **TeamChat**, **TaskManager**, **FileManager**,
+> **DataViewer**, **Form**, **ResTui**, **Recorder**, **Scaffold**, and **DelphiDay**. Press
+> **T** in any demo to hot-toggle the Dark/Light theme.
 
 ---
 
@@ -226,94 +288,6 @@ Blinki ships **24 built-in widgets** organized into six categories. See the full
 
 ---
 
-## Demo Gallery
-
-Sixteen complete demo applications live under [`Demos\`](Demos) and are aggregated by
-`Demos\Blinki.Demos.groupproj`. A selection of the highlights:
-
-<table>
-<tr>
-<td width="50%">
-
-**Dashboard** — log analytics with a custom data table, bar charts, sparklines and severity-colored overlays.
-
-<img alt="Dashboard demo" src="Demos/Dashboard/Screenshot.png">
-
-</td>
-<td width="50%">
-
-**CryptoTracker** — a real-time market watchlist with a live candlestick chart.
-
-<img alt="CryptoTracker demo" src="Demos/CryptoTracker/Screenshot.png">
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**SysMonitor** — an htop-style system monitor: CPU/memory gauges, history sparklines, process table.
-
-<img alt="SysMonitor demo" src="Demos/SysMonitor/Screenshot.png">
-
-</td>
-<td width="50%">
-
-**WorldCup** — a dense live-sports dashboard with groups, standings, schedule and gradient FX.
-
-<img alt="WorldCup demo" src="Demos/WorldCup/Screenshot.png">
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**Tetris** — a full real-time game with SRS rotation, 7-bag randomizer and a colorful logo.
-
-<img alt="Tetris demo" src="Demos/Tetris/Screenshot.png">
-
-</td>
-<td width="50%">
-
-**EffectsShowcase** — gradient banners, typing animation, color waves and Matrix rain on tabbed pages.
-
-<img alt="EffectsShowcase demo" src="Demos/EffectsShowcase/Screenshot.png">
-
-</td>
-</tr>
-</table>
-
-> The full set also includes **Kanban**, **TeamChat**, **TaskManager**, **FileManager**,
-> **DataViewer**, **Form**, **ResTui**, **Recorder**, **Scaffold**, and **DelphiDay**. Press
-> **T** in any demo to hot-toggle the Dark/Light theme.
-
----
-
-## Building
-
-Blinki is built with **MSBuild** from a Developer Command Prompt (or after calling `rsvars.bat`) —
-never the IDE's Build button.
-
-```bat
-call "C:\Program Files (x86)\Embarcadero\Studio\37.0\bin\rsvars.bat"
-
-:: Runtime package (builds Blinki.bpl)
-msbuild Source\Blinki.dproj /t:Build /p:Config=Release /p:Platform=Win32
-
-:: Every demo app at once
-msbuild Demos\Blinki.Demos.groupproj /t:Build /p:Config=Release /p:Platform=Win32
-
-:: Smoke tests (runtime package + 11 per-layer smoke tests)
-msbuild Tests\SmokeTests\Blinki.SmokeTests.groupproj /t:Build /p:Config=Release /p:Platform=Win32
-
-:: DUnitX unit tests — build, then run the .exe (exit code 0 means all passed)
-msbuild Tests\UnitTests\BlinkiUnitTests.dproj /t:Build /p:Config=Release /p:Platform=Win32
-```
-
-Demo executables land in `Demos\<Name>\Win32\<Config>\`. To run a demo, build it and launch its
-`.exe` from a real console window (not from inside the IDE).
-
----
-
 ## Testing
 
 Testing happens on two layers, both under `Tests\`:
@@ -329,7 +303,7 @@ Testing happens on two layers, both under `Tests\`:
 
 | Requirement | Version |
 |-------------|---------|
-| Delphi | 12 Alexandria (37.0) or later |
+| Delphi | 13.1 Florence or later |
 | Target platform | Win32 (32-bit console) |
 | Windows | Windows 10 build 10586 (v1511) or later |
 | Terminal | Windows Terminal (recommended) or ConHost |
@@ -362,24 +336,7 @@ API surface — see the [documentation](#documentation).
 
 ## Documentation
 
-The [`Wiki`](Wiki) folder contains the full documentation set, generated from the source and
-navigable as a GitHub-style wiki (start at [Home](Wiki/Home.md)):
-
-| Topic | Page |
-|-------|------|
-| Philosophy & why TUI | [Philosophy & Why TUI](Wiki/Philosophy-and-Why-TUI.md) |
-| Architecture & rendering pipeline | [Architecture](Wiki/Architecture.md) |
-| Windows API & terminal features | [Windows API & Terminal](Wiki/Windows-API-and-Terminal.md) |
-| The widget system & lifecycle | [Widget System](Wiki/Widget-System.md) |
-| Full widget reference | [Widget Catalog](Wiki/Widget-Catalog.md) |
-| Layout engine | [Layout System](Wiki/Layout-System.md) |
-| Theming & styles | [Theming & Styles](Wiki/Theming-and-Styles.md) |
-| Effects & animation | [Effects & FX](Wiki/Effects-FX.md) |
-| Writing custom widgets | [Extending Blinki](Wiki/Extending-Blinki.md) |
-| Common pitfalls | [Gotchas & FAQ](Wiki/Gotchas-and-FAQ.md) |
-| All 16 demos explained | [Demos](Wiki/Demos.md) |
-| Smoke & unit tests | [Testing](Wiki/Testing.md) |
-| Build, conventions, glossary | [Build & Conventions](Wiki/Build-and-Conventions.md) |
+A **full project Wiki** is under construction.
 
 The coding style is documented in [`STYLE_GUIDE.md`](STYLE_GUIDE.md).
 
