@@ -142,7 +142,7 @@ const
   // Hint bar text shown at the bottom of the play field
   CHintText =
     ' ←→ Move  ↑ Rotate  ↓ Soft drop  Space Hard drop' +
-    '  Z/X Rotate  C Hold  P Pause  R Restart  Q Quit';
+    '  Enter/C Hold  Z/X Rotate  P Pause  R Restart  Q Quit';
 
 implementation
 

@@ -101,6 +101,7 @@
         <DCCReference Include="Tetris.Helpers.pas"/>
         <DCCReference Include="Tetris.Model.pas"/>
         <DCCReference Include="Tetris.View.pas"/>
+        <DCCReference Include="Tetris.Audio.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

@@ -36,6 +36,16 @@ uses
 
 type
   /// <summary>
+  ///   Notable game actions that TTetrisGame notifies via its OnEvent callback.
+  /// </summary>
+  TGameEvent = (geRotate, geHold, geDrop, geLock, geGameOver);
+
+  /// <summary>
+  ///   Callback type for game event notifications (compatible with method references).
+  /// </summary>
+  TGameEventProc = reference to procedure(AEvent: TGameEvent);
+
+  /// <summary>
   ///   Tracks whether the game is running, paused, or over.
   /// </summary>
   TGameState = (gsPlaying, gsPaused, gsGameOver);
@@ -61,12 +71,14 @@ type
     FNextBagIdx: Integer;
     FScore: Integer;
     FState: TGameState;
+    FOnEvent: TGameEventProc;
     // Private helpers
     function CanPlace(AKind: TTetrominoKind; ARot, AX, AY: Integer): Boolean;
     function ClearFullLines: Integer;
     function GetNextKind: TTetrominoKind;
     function GravityIntervalMs: Integer;
     procedure LockPiece;
+    procedure Notify(AEvent: TGameEvent);
     procedure RefillBag;
     procedure SpawnNext;
   public
@@ -138,6 +150,11 @@ type
     property NextKind: TTetrominoKind read GetNextKind;
     property Score: Integer read FScore;
     property State: TGameState read FState;
+    /// <summary>
+    ///   Optional callback fired when a notable game action occurs.
+    ///   Assign a TTetrisAudio.HandleGameEvent (or any TGameEventProc) to play sounds.
+    /// </summary>
+    property OnEvent: TGameEventProc read FOnEvent write FOnEvent;
   end;
 
 implementation
@@ -224,12 +241,19 @@ begin
   Result := CGravityMs[Min(FLevel, 20)];
 end;
 
+procedure TTetrisGame.Notify(AEvent: TGameEvent);
+begin
+  if Assigned(FOnEvent) then
+    FOnEvent(AEvent);
+end;
+
 procedure TTetrisGame.LockPiece;
 begin
   var LCells := CurrentCells;
   for var LI := 0 to 3 do
     FGrid[LCells[LI].Y, LCells[LI].X] := FCurrentKind;
   ClearFullLines;
+  Notify(geLock);
   SpawnNext;
 end;
 
@@ -265,7 +289,10 @@ begin
   FCurrentY := 0;
   FHoldUsed := False;
   if not CanPlace(FCurrentKind, FCurrentRot, FCurrentX, FCurrentY) then
+  begin
     FState := gsGameOver;
+    Notify(geGameOver);
+  end;
 end;
 
 // ---------------------------------------------------------------------------
@@ -327,6 +354,7 @@ begin
   var LDelta := LTarget - FCurrentY;
   FCurrentY := LTarget;
   Inc(FScore, LDelta * 2);
+  Notify(geDrop);
   LockPiece;
 end;
 
@@ -334,6 +362,7 @@ procedure TTetrisGame.RotateCW;
 begin
   if FState <> gsPlaying then
     Exit;
+  var LOldRot := FCurrentRot;
   var LNewRot := (FCurrentRot + 1) mod 4;
   // Try natural position, then wall-kick offsets
   if CanPlace(FCurrentKind, LNewRot, FCurrentX, FCurrentY) then
@@ -358,12 +387,15 @@ begin
     FCurrentRot := LNewRot;
     Dec(FCurrentX, 2);
   end;
+  if FCurrentRot <> LOldRot then
+    Notify(geRotate);
 end;
 
 procedure TTetrisGame.RotateCCW;
 begin
   if FState <> gsPlaying then
     Exit;
+  var LOldRot := FCurrentRot;
   var LNewRot := (FCurrentRot + 3) mod 4;
   // Try natural position, then wall-kick offsets
   if CanPlace(FCurrentKind, LNewRot, FCurrentX, FCurrentY) then
@@ -388,6 +420,8 @@ begin
     FCurrentRot := LNewRot;
     Dec(FCurrentX, 2);
   end;
+  if FCurrentRot <> LOldRot then
+    Notify(geRotate);
 end;
 
 procedure TTetrisGame.Hold;
@@ -412,9 +446,14 @@ begin
     FCurrentX := 3;
     FCurrentY := 0;
     if not CanPlace(FCurrentKind, FCurrentRot, FCurrentX, FCurrentY) then
+    begin
       FState := gsGameOver;
+      Notify(geGameOver);
+    end;
   end;
   FHoldUsed := True;
+  if FState = gsPlaying then
+    Notify(geHold);
 end;
 
 procedure TTetrisGame.TogglePause;

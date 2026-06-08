@@ -34,11 +34,10 @@
 ///
 ///   Keys:
 ///     Left / Right   -- move piece
-///     Up             -- rotate CW
+///     Up / Z / X     -- rotate CW / CCW
 ///     Down           -- soft drop
 ///     Space          -- hard drop
-///     Z / X          -- rotate CCW / CW
-///     C              -- hold piece
+///     Enter / C      -- hold piece
 ///     P / Esc        -- pause / resume
 ///     R              -- restart
 ///     Q / Esc        -- quit (when not paused, Esc quits; when paused, Esc unpauses)
@@ -50,15 +49,15 @@
 ///         LCenterCol (TTuiVStack)                        Fixed(38)
 ///           LTitleView (TTetrisTitleView)                Fixed(7)
 ///           LTopSpacer (TTuiHStack, empty)               Fill(1)
-///           LGameRow (TTuiHStack)                        Fixed(23)
-///             LBoardBox (TTuiBox " TETRIS ", bsRounded)  Fixed(22)
+///           LGameRow (TTuiHStack)                          Fixed(23)
+///             LBoardBox (TTetrisBox, no title)             Fixed(22)
 ///               LBoardView (TTetrisBoardView)
-///             LSideStack (TTuiVStack)                    Fixed(16)
-///               LNextBox (TTuiBox " Next ", bsRounded)  Fixed(6)
+///             LSideStack (TTuiVStack)                      Fixed(16)
+///               LNextBox (TTetrisBox " Next ")             Fixed(6)
 ///                 LNextView (TTetrisPreviewView pkNext)
-///               LHoldBox (TTuiBox " Hold ", bsRounded)  Fixed(6)
+///               LHoldBox (TTetrisBox " Hold ")             Fixed(6)
 ///                 LHoldView (TTetrisPreviewView pkHold)
-///               LStatsBox (TTuiBox " Stats ", bsRnd)    Fill(1)
+///               LStatsBox (TTetrisBox " Stats ")           Fill(1)
 ///                 LStatsView (TTetrisStatsView)
 ///           LBottomSpacer (TTuiHStack, empty)            Fill(1)
 ///         LRightMargin (TTuiVStack, empty)               Fill(1)
@@ -82,13 +81,18 @@ uses
   Tetris.Consts in 'Tetris.Consts.pas',
   Tetris.Helpers in 'Tetris.Helpers.pas',
   Tetris.Model in 'Tetris.Model.pas',
-  Tetris.View in 'Tetris.View.pas';
+  Tetris.View in 'Tetris.View.pas',
+  Tetris.Audio in 'Tetris.Audio.pas';
 
 begin
   ReportMemoryLeaksOnShutdown := True;
   Randomize;
   var LGame := TTetrisGame.Create;
   try
+    {$IFDEF MSWINDOWS}
+    var LAudio := TTetrisAudio.Create(ExtractFilePath(ParamStr(0)) + 'Sounds\');
+    LGame.OnEvent := LAudio.HandleGameEvent;
+    {$ENDIF}
     var LApp := TTuiApp.Create;
     var LRoot := TTuiVStack.Create;
     try
@@ -117,9 +121,7 @@ begin
       LGameRow.LayoutConstraint := TTuiLayoutConstraint.Fixed(23);
 
       // board box: fixed 22 wide = CBoardCols * CCellWidth + 2 border
-      var LBoardBox := TTuiBox.Create(LGameRow);
-      LBoardBox.Title := ' TETRIS ';
-      LBoardBox.BoxStyle := bsRounded;
+      var LBoardBox := TTetrisBox.Create(LGameRow);
       LBoardBox.LayoutConstraint := TTuiLayoutConstraint.Fixed(22);
 
       var LBoardView := TTetrisBoardView.Create(LBoardBox);
@@ -128,23 +130,20 @@ begin
       var LSideStack := TTuiVStack.Create(LGameRow);
       LSideStack.LayoutConstraint := TTuiLayoutConstraint.Fixed(16);
 
-      var LNextBox := TTuiBox.Create(LSideStack);
+      var LNextBox := TTetrisBox.Create(LSideStack);
       LNextBox.Title := ' Next ';
-      LNextBox.BoxStyle := bsRounded;
       LNextBox.LayoutConstraint := TTuiLayoutConstraint.Fixed(6);
 
       var LNextView := TTetrisPreviewView.Create(pkNext, LNextBox);
 
-      var LHoldBox := TTuiBox.Create(LSideStack);
+      var LHoldBox := TTetrisBox.Create(LSideStack);
       LHoldBox.Title := ' Hold ';
-      LHoldBox.BoxStyle := bsRounded;
       LHoldBox.LayoutConstraint := TTuiLayoutConstraint.Fixed(6);
 
       var LHoldView := TTetrisPreviewView.Create(pkHold, LHoldBox);
 
-      var LStatsBox := TTuiBox.Create(LSideStack);
+      var LStatsBox := TTetrisBox.Create(LSideStack);
       LStatsBox.Title := ' Stats ';
-      LStatsBox.BoxStyle := bsRounded;
       LStatsBox.LayoutConstraint := TTuiLayoutConstraint.Fill(1);
 
       var LStatsView := TTetrisStatsView.Create(LStatsBox);
@@ -188,6 +187,9 @@ begin
       LApp.Run;
 
     finally
+      {$IFDEF MSWINDOWS}
+      LAudio.Free;
+      {$ENDIF}
       LApp.Free;
     end;
   finally

@@ -38,6 +38,7 @@ uses
   Blinki.Core.Canvas,
   Blinki.Core.Event,
   Blinki.Core.Widget,
+  Blinki.Widgets.Box,
   Tetris.Model;
 
 type
@@ -127,11 +128,26 @@ type
     constructor Create(AParent: TTuiWidget = nil);
   end;
 
+{ TTetrisBox }
+
+  /// <summary>
+  ///   Decorated box with a bright accent border (Theme.Primary) and a
+  ///   per-character rainbow gradient title, overriding the default grey
+  ///   border of TTuiBox.  Used for all four panels of the Tetris demo.
+  /// </summary>
+  TTetrisBox = class(TTuiBox)
+  protected
+    procedure DoRender(const ACanvas: TTuiCanvas; const ARect: TRect); override;
+  public
+    constructor Create(AParent: TTuiWidget = nil);
+  end;
+
 implementation
 
 uses
   System.Math,
   System.SysUtils,
+  Blinki.Core.Ansi,
   Blinki.Core.Input,
   Blinki.Core.Style,
   Blinki.Core.Theme,
@@ -234,6 +250,15 @@ begin
       if FGame.State = gsPlaying then
       begin
         FGame.HardDrop;
+        Invalidate;
+        Result := True;
+      end;
+    end;
+    kcEnter:
+    begin
+      if FGame.State = gsPlaying then
+      begin
+        FGame.Hold;
         Invalidate;
         Result := True;
       end;
@@ -556,6 +581,45 @@ begin
     end;
 
     Inc(LPenX, LLetterW + 1);
+  end;
+end;
+
+{ TTetrisBox }
+
+constructor TTetrisBox.Create(AParent: TTuiWidget);
+begin
+  inherited Create(AParent);
+  BoxStyle := bsRounded;
+  BorderStyle := TTuiStyle.Create(Theme.Primary, Theme.Surface);
+end;
+
+procedure TTetrisBox.DoRender(const ACanvas: TTuiCanvas; const ARect: TRect);
+begin
+  // Draw border + child with the accent colour
+  inherited DoRender(ACanvas, ARect);
+  // Overdraw title characters with a static per-character rainbow gradient
+  if (Title = '') or (ARect.Width <= 4) then
+    Exit;
+  var LInner := ARect.Width - 2;
+  var LStr := ' ' + Title + ' ';
+  var LLen := Length(LStr);
+  if LLen > LInner then
+  begin
+    LLen := LInner;
+    LStr := Copy(LStr, 1, LLen);
+  end;
+  var LPadLeft := (LInner - LLen) div 2;
+  var LStartX := ARect.Left + 1 + LPadLeft;
+  for var LJ := 1 to LLen do
+  begin
+    var LHue: Single;
+    if LLen <= 1 then
+      LHue := 0.0
+    else
+      LHue := (LJ - 1) / (LLen - 1);
+    var LFg := HueColor(LHue);
+    ACanvas.WriteAt(LStartX + LJ - 1, ARect.Top, LStr[LJ],
+      TTuiStyle.Create(LFg, Theme.Surface, [taBold]));
   end;
 end;
 
