@@ -1,0 +1,78 @@
+package Blinki;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$RUNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl;
+
+contains
+  Blinki.Core.Ansi in 'Blinki.Core.Ansi.pas',
+  Blinki.Core.App in 'Blinki.Core.App.pas',
+  Blinki.Core.Canvas in 'Blinki.Core.Canvas.pas',
+  Blinki.Core.Console in 'Blinki.Core.Console.pas',
+  Blinki.Core.Console.Posix in 'Blinki.Core.Console.Posix.pas',
+  Blinki.Core.Console.Windows in 'Blinki.Core.Console.Windows.pas',
+  Blinki.Core.Event in 'Blinki.Core.Event.pas',
+  Blinki.Core.Geometry in 'Blinki.Core.Geometry.pas',
+  Blinki.Core.Input in 'Blinki.Core.Input.pas',
+  Blinki.Core.Render in 'Blinki.Core.Render.pas',
+  Blinki.Core.Style in 'Blinki.Core.Style.pas',
+  Blinki.Core.Theme in 'Blinki.Core.Theme.pas',
+  Blinki.Core.Widget in 'Blinki.Core.Widget.pas',
+  Blinki.FX.Gradient in 'Blinki.FX.Gradient.pas',
+  Blinki.Layout.Grid in 'Blinki.Layout.Grid.pas',
+  Blinki.Layout.Scrollable in 'Blinki.Layout.Scrollable.pas',
+  Blinki.Layout.Solver in 'Blinki.Layout.Solver.pas',
+  Blinki.Layout.Stack in 'Blinki.Layout.Stack.pas',
+  Blinki.Widgets.Alert in 'Blinki.Widgets.Alert.pas',
+  Blinki.Widgets.Badge in 'Blinki.Widgets.Badge.pas',
+  Blinki.Widgets.BarChart in 'Blinki.Widgets.BarChart.pas',
+  Blinki.Widgets.Box in 'Blinki.Widgets.Box.pas',
+  Blinki.Widgets.Button in 'Blinki.Widgets.Button.pas',
+  Blinki.Widgets.Checkbox in 'Blinki.Widgets.Checkbox.pas',
+  Blinki.Widgets.Dialog in 'Blinki.Widgets.Dialog.pas',
+  Blinki.Widgets.Gauge in 'Blinki.Widgets.Gauge.pas',
+  Blinki.Widgets.Labels in 'Blinki.Widgets.Labels.pas',
+  Blinki.Widgets.MatrixRain in 'Blinki.Widgets.MatrixRain.pas',
+  Blinki.Widgets.Menu in 'Blinki.Widgets.Menu.pas',
+  Blinki.Widgets.ProgressBar in 'Blinki.Widgets.ProgressBar.pas',
+  Blinki.Widgets.RadioButton in 'Blinki.Widgets.RadioButton.pas',
+  Blinki.Widgets.Select in 'Blinki.Widgets.Select.pas',
+  Blinki.Widgets.Sidebar in 'Blinki.Widgets.Sidebar.pas',
+  Blinki.Widgets.Sparkline in 'Blinki.Widgets.Sparkline.pas',
+  Blinki.Widgets.Spinner in 'Blinki.Widgets.Spinner.pas',
+  Blinki.Widgets.Table in 'Blinki.Widgets.Table.pas',
+  Blinki.Widgets.Tabs in 'Blinki.Widgets.Tabs.pas',
+  Blinki.Widgets.TextArea in 'Blinki.Widgets.TextArea.pas',
+  Blinki.Widgets.TextInput in 'Blinki.Widgets.TextInput.pas',
+  Blinki.Widgets.Toast in 'Blinki.Widgets.Toast.pas',
+  Blinki.Widgets.TypingEffect in 'Blinki.Widgets.TypingEffect.pas',
+  Blinki.Widgets.WaveAnimation in 'Blinki.Widgets.WaveAnimation.pas';
+
+end.

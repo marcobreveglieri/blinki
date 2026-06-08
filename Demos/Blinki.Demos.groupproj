@@ -1,0 +1,216 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{117E1A87-E981-4764-B367-A4DC9B3A06C1}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="TeamChat\TeamChat.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="TaskManager\TaskManager.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="FileManager\FileManager.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Tetris\Tetris.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Scaffold\Scaffold.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Recorder\Recorder.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Kanban\Kanban.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="CryptoTracker\CryptoTracker.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="WorldCup\WorldCup.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Dashboard\Dashboard.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="ResTui\ResTui.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="SysMonitor\SysMonitor.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Form\Form.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="DataViewer\DataViewer.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="EffectsShowcase\EffectsShowcase.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="DelphiDay\DelphiDay.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="TeamChat">
+        <MSBuild Projects="TeamChat\TeamChat.dproj"/>
+    </Target>
+    <Target Name="TeamChat:Clean">
+        <MSBuild Projects="TeamChat\TeamChat.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="TeamChat:Make">
+        <MSBuild Projects="TeamChat\TeamChat.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="TaskManager">
+        <MSBuild Projects="TaskManager\TaskManager.dproj"/>
+    </Target>
+    <Target Name="TaskManager:Clean">
+        <MSBuild Projects="TaskManager\TaskManager.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="TaskManager:Make">
+        <MSBuild Projects="TaskManager\TaskManager.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="FileManager">
+        <MSBuild Projects="FileManager\FileManager.dproj"/>
+    </Target>
+    <Target Name="FileManager:Clean">
+        <MSBuild Projects="FileManager\FileManager.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="FileManager:Make">
+        <MSBuild Projects="FileManager\FileManager.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Tetris">
+        <MSBuild Projects="Tetris\Tetris.dproj"/>
+    </Target>
+    <Target Name="Tetris:Clean">
+        <MSBuild Projects="Tetris\Tetris.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Tetris:Make">
+        <MSBuild Projects="Tetris\Tetris.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Scaffold">
+        <MSBuild Projects="Scaffold\Scaffold.dproj"/>
+    </Target>
+    <Target Name="Scaffold:Clean">
+        <MSBuild Projects="Scaffold\Scaffold.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Scaffold:Make">
+        <MSBuild Projects="Scaffold\Scaffold.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Recorder">
+        <MSBuild Projects="Recorder\Recorder.dproj"/>
+    </Target>
+    <Target Name="Recorder:Clean">
+        <MSBuild Projects="Recorder\Recorder.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Recorder:Make">
+        <MSBuild Projects="Recorder\Recorder.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Kanban">
+        <MSBuild Projects="Kanban\Kanban.dproj"/>
+    </Target>
+    <Target Name="Kanban:Clean">
+        <MSBuild Projects="Kanban\Kanban.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Kanban:Make">
+        <MSBuild Projects="Kanban\Kanban.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="CryptoTracker">
+        <MSBuild Projects="CryptoTracker\CryptoTracker.dproj"/>
+    </Target>
+    <Target Name="CryptoTracker:Clean">
+        <MSBuild Projects="CryptoTracker\CryptoTracker.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="CryptoTracker:Make">
+        <MSBuild Projects="CryptoTracker\CryptoTracker.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="WorldCup">
+        <MSBuild Projects="WorldCup\WorldCup.dproj"/>
+    </Target>
+    <Target Name="WorldCup:Clean">
+        <MSBuild Projects="WorldCup\WorldCup.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="WorldCup:Make">
+        <MSBuild Projects="WorldCup\WorldCup.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Dashboard">
+        <MSBuild Projects="Dashboard\Dashboard.dproj"/>
+    </Target>
+    <Target Name="Dashboard:Clean">
+        <MSBuild Projects="Dashboard\Dashboard.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Dashboard:Make">
+        <MSBuild Projects="Dashboard\Dashboard.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="ResTui">
+        <MSBuild Projects="ResTui\ResTui.dproj"/>
+    </Target>
+    <Target Name="ResTui:Clean">
+        <MSBuild Projects="ResTui\ResTui.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="ResTui:Make">
+        <MSBuild Projects="ResTui\ResTui.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="SysMonitor">
+        <MSBuild Projects="SysMonitor\SysMonitor.dproj"/>
+    </Target>
+    <Target Name="SysMonitor:Clean">
+        <MSBuild Projects="SysMonitor\SysMonitor.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="SysMonitor:Make">
+        <MSBuild Projects="SysMonitor\SysMonitor.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Form">
+        <MSBuild Projects="Form\Form.dproj"/>
+    </Target>
+    <Target Name="Form:Clean">
+        <MSBuild Projects="Form\Form.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Form:Make">
+        <MSBuild Projects="Form\Form.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="DataViewer">
+        <MSBuild Projects="DataViewer\DataViewer.dproj"/>
+    </Target>
+    <Target Name="DataViewer:Clean">
+        <MSBuild Projects="DataViewer\DataViewer.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="DataViewer:Make">
+        <MSBuild Projects="DataViewer\DataViewer.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="EffectsShowcase">
+        <MSBuild Projects="EffectsShowcase\EffectsShowcase.dproj"/>
+    </Target>
+    <Target Name="EffectsShowcase:Clean">
+        <MSBuild Projects="EffectsShowcase\EffectsShowcase.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="EffectsShowcase:Make">
+        <MSBuild Projects="EffectsShowcase\EffectsShowcase.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="DelphiDay">
+        <MSBuild Projects="DelphiDay\DelphiDay.dproj"/>
+    </Target>
+    <Target Name="DelphiDay:Clean">
+        <MSBuild Projects="DelphiDay\DelphiDay.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="DelphiDay:Make">
+        <MSBuild Projects="DelphiDay\DelphiDay.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="TeamChat;TaskManager;FileManager;Tetris;Scaffold;Recorder;Kanban;CryptoTracker;WorldCup;Dashboard;ResTui;SysMonitor;Form;DataViewer;EffectsShowcase;DelphiDay"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="TeamChat:Clean;TaskManager:Clean;FileManager:Clean;Tetris:Clean;Scaffold:Clean;Recorder:Clean;Kanban:Clean;CryptoTracker:Clean;WorldCup:Clean;Dashboard:Clean;ResTui:Clean;SysMonitor:Clean;Form:Clean;DataViewer:Clean;EffectsShowcase:Clean;DelphiDay:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="TeamChat:Make;TaskManager:Make;FileManager:Make;Tetris:Make;Scaffold:Make;Recorder:Make;Kanban:Make;CryptoTracker:Make;WorldCup:Make;Dashboard:Make;ResTui:Make;SysMonitor:Make;Form:Make;DataViewer:Make;EffectsShowcase:Make;DelphiDay:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

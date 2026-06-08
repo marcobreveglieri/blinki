@@ -1,0 +1,35 @@
+# Delphi compiled output
+*.dcu
+*.exe
+*.res
+*.otares
+*.identcache
+
+# Delphi output directories
+Win32/
+Win64/
+
+# Delphi history and recovery
+__history/
+__recovery/
+
+# Delphi local project settings (user-specific)
+*.dproj.local
+*.groupproj.local
+
+# IDE directories
+.idea/
+.vs/
+
+# Delphi resource files (auto-generated)
+*.cfg
+*.drc
+
+# Local log files
+*.log
+
+# AI local files
+CLAUDE.md
+
+# Additional folders
+Temp/

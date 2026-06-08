@@ -1,0 +1,67 @@
+{
+  "name": "Sample Collection",
+  "requests": [
+    {
+      "name": "Get todos",
+      "method": "GET",
+      "url": "https://jsonplaceholder.typicode.com/todos",
+      "params": [
+        { "enabled": true, "key": "_limit", "value": "5" }
+      ],
+      "headers": [],
+      "auth": { "kind": "none", "token": "", "username": "", "password": "", "headerName": "", "headerValue": "" },
+      "body": { "kind": "none", "content": "" }
+    },
+    {
+      "name": "Get todo by id",
+      "method": "GET",
+      "url": "https://jsonplaceholder.typicode.com/todos/1",
+      "params": [],
+      "headers": [],
+      "auth": { "kind": "none", "token": "", "username": "", "password": "", "headerName": "", "headerValue": "" },
+      "body": { "kind": "none", "content": "" }
+    },
+    {
+      "name": "Create post",
+      "method": "POST",
+      "url": "https://jsonplaceholder.typicode.com/posts",
+      "params": [],
+      "headers": [],
+      "auth": { "kind": "none", "token": "", "username": "", "password": "", "headerName": "", "headerValue": "" },
+      "body": {
+        "kind": "json",
+        "content": "{\n  \"title\": \"Hello ResTui\",\n  \"body\": \"A TUI REST client for Delphi\",\n  \"userId\": 1\n}"
+      }
+    },
+    {
+      "name": "Bearer auth (httpbin)",
+      "method": "GET",
+      "url": "https://httpbin.org/bearer",
+      "params": [],
+      "headers": [],
+      "auth": { "kind": "bearer", "token": "my-secret-token", "username": "", "password": "", "headerName": "", "headerValue": "" },
+      "body": { "kind": "none", "content": "" }
+    },
+    {
+      "name": "Echo params (httpbin)",
+      "method": "GET",
+      "url": "https://httpbin.org/get",
+      "params": [
+        { "enabled": true, "key": "foo", "value": "bar" },
+        { "enabled": true, "key": "version", "value": "1" }
+      ],
+      "headers": [],
+      "auth": { "kind": "none", "token": "", "username": "", "password": "", "headerName": "", "headerValue": "" },
+      "body": { "kind": "none", "content": "" }
+    },
+    {
+      "name": "Delete post",
+      "method": "DELETE",
+      "url": "https://jsonplaceholder.typicode.com/posts/1",
+      "params": [],
+      "headers": [],
+      "auth": { "kind": "none", "token": "", "username": "", "password": "", "headerName": "", "headerValue": "" },
+      "body": { "kind": "none", "content": "" }
+    }
+  ]
+}

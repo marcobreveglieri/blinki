@@ -1,0 +1,168 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{89862CAC-1F98-4051-95A7-BE5A4A291BF6}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="..\..\Source\Blinki.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="AppSmoke\AppSmoke.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="CanvasSmoke\CanvasSmoke.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Smoke\Smoke.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="LayoutSmoke\LayoutSmoke.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="FeedbackSmoke\FeedbackSmoke.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="InteractiveSmoke\InteractiveSmoke.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="DashboardSmoke\DashboardSmoke.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="TableSmoke\TableSmoke.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Widgets9ASmoke\Widgets9ASmoke.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="FxSmoke\FxSmoke.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="DialogSmoke\DialogSmoke.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="Blinki">
+        <MSBuild Projects="..\..\Source\Blinki.dproj"/>
+    </Target>
+    <Target Name="Blinki:Clean">
+        <MSBuild Projects="..\..\Source\Blinki.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Blinki:Make">
+        <MSBuild Projects="..\..\Source\Blinki.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="AppSmoke">
+        <MSBuild Projects="AppSmoke\AppSmoke.dproj"/>
+    </Target>
+    <Target Name="AppSmoke:Clean">
+        <MSBuild Projects="AppSmoke\AppSmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="AppSmoke:Make">
+        <MSBuild Projects="AppSmoke\AppSmoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="CanvasSmoke">
+        <MSBuild Projects="CanvasSmoke\CanvasSmoke.dproj"/>
+    </Target>
+    <Target Name="CanvasSmoke:Clean">
+        <MSBuild Projects="CanvasSmoke\CanvasSmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="CanvasSmoke:Make">
+        <MSBuild Projects="CanvasSmoke\CanvasSmoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Smoke">
+        <MSBuild Projects="Smoke\Smoke.dproj"/>
+    </Target>
+    <Target Name="Smoke:Clean">
+        <MSBuild Projects="Smoke\Smoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Smoke:Make">
+        <MSBuild Projects="Smoke\Smoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="LayoutSmoke">
+        <MSBuild Projects="LayoutSmoke\LayoutSmoke.dproj"/>
+    </Target>
+    <Target Name="LayoutSmoke:Clean">
+        <MSBuild Projects="LayoutSmoke\LayoutSmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="LayoutSmoke:Make">
+        <MSBuild Projects="LayoutSmoke\LayoutSmoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="FeedbackSmoke">
+        <MSBuild Projects="FeedbackSmoke\FeedbackSmoke.dproj"/>
+    </Target>
+    <Target Name="FeedbackSmoke:Clean">
+        <MSBuild Projects="FeedbackSmoke\FeedbackSmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="FeedbackSmoke:Make">
+        <MSBuild Projects="FeedbackSmoke\FeedbackSmoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="InteractiveSmoke">
+        <MSBuild Projects="InteractiveSmoke\InteractiveSmoke.dproj"/>
+    </Target>
+    <Target Name="InteractiveSmoke:Clean">
+        <MSBuild Projects="InteractiveSmoke\InteractiveSmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="InteractiveSmoke:Make">
+        <MSBuild Projects="InteractiveSmoke\InteractiveSmoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="DashboardSmoke">
+        <MSBuild Projects="DashboardSmoke\DashboardSmoke.dproj"/>
+    </Target>
+    <Target Name="DashboardSmoke:Clean">
+        <MSBuild Projects="DashboardSmoke\DashboardSmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="DashboardSmoke:Make">
+        <MSBuild Projects="DashboardSmoke\DashboardSmoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="TableSmoke">
+        <MSBuild Projects="TableSmoke\TableSmoke.dproj"/>
+    </Target>
+    <Target Name="TableSmoke:Clean">
+        <MSBuild Projects="TableSmoke\TableSmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="TableSmoke:Make">
+        <MSBuild Projects="TableSmoke\TableSmoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Widgets9ASmoke">
+        <MSBuild Projects="Widgets9ASmoke\Widgets9ASmoke.dproj"/>
+    </Target>
+    <Target Name="Widgets9ASmoke:Clean">
+        <MSBuild Projects="Widgets9ASmoke\Widgets9ASmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Widgets9ASmoke:Make">
+        <MSBuild Projects="Widgets9ASmoke\Widgets9ASmoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="FxSmoke">
+        <MSBuild Projects="FxSmoke\FxSmoke.dproj"/>
+    </Target>
+    <Target Name="FxSmoke:Clean">
+        <MSBuild Projects="FxSmoke\FxSmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="FxSmoke:Make">
+        <MSBuild Projects="FxSmoke\FxSmoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="DialogSmoke">
+        <MSBuild Projects="DialogSmoke\DialogSmoke.dproj"/>
+    </Target>
+    <Target Name="DialogSmoke:Clean">
+        <MSBuild Projects="DialogSmoke\DialogSmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="DialogSmoke:Make">
+        <MSBuild Projects="DialogSmoke\DialogSmoke.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="Blinki;AppSmoke;CanvasSmoke;Smoke;LayoutSmoke;FeedbackSmoke;InteractiveSmoke;DashboardSmoke;TableSmoke;Widgets9ASmoke;FxSmoke;DialogSmoke"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="Blinki:Clean;AppSmoke:Clean;CanvasSmoke:Clean;Smoke:Clean;LayoutSmoke:Clean;FeedbackSmoke:Clean;InteractiveSmoke:Clean;DashboardSmoke:Clean;TableSmoke:Clean;Widgets9ASmoke:Clean;FxSmoke:Clean;DialogSmoke:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="Blinki:Make;AppSmoke:Make;CanvasSmoke:Make;Smoke:Make;LayoutSmoke:Make;FeedbackSmoke:Make;InteractiveSmoke:Make;DashboardSmoke:Make;TableSmoke:Make;Widgets9ASmoke:Make;FxSmoke:Make;DialogSmoke:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

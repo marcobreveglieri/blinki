@@ -1,0 +1,36 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{3DC17DDC-CE38-455A-AC80-AF1748A95796}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="Core\Blinki.UnitTests.Core.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="Blinki_UnitTests_Core">
+        <MSBuild Projects="Core\Blinki.UnitTests.Core.dproj"/>
+    </Target>
+    <Target Name="Blinki_UnitTests_Core:Clean">
+        <MSBuild Projects="Core\Blinki.UnitTests.Core.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Blinki_UnitTests_Core:Make">
+        <MSBuild Projects="Core\Blinki.UnitTests.Core.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="Blinki_UnitTests_Core"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="Blinki_UnitTests_Core:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="Blinki_UnitTests_Core:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
