@@ -242,10 +242,22 @@ type
     {$ENDREGION}
     {$REGION 'Utilities'}
     /// <summary>
+    ///   True for EAW = W/F characters (CJK, Hangul, Fullwidth): occupy 2 terminal columns.
+    /// </summary>
+    class function IsWideChar(ACh: Char): Boolean; static;
+
+    /// <summary>
     ///   Computes the visible length of a string, excluding ANSI escape sequences
-    ///   (CSI ... [A-Za-z] and OSC ... BEL/ST). Useful for centering and alignment.
+    ///   (CSI ... [A-Za-z] and OSC ... BEL/ST). Correctly accounts for WideChar
+    ///   characters (CJK) that occupy 2 columns.
     /// </summary>
     class function VisibleLength(const AText: string): Integer; static;
+
+    /// <summary>
+    ///   Returns a substring of AText that fits within AMaxWidth columns.
+    ///   Correctly handles WideChar characters.
+    /// </summary>
+    class function TruncateToWidth(const AText: string; AMaxWidth: Integer): string; static;
 
     /// <summary>
     ///   Splits AText into word-wrapped lines that fit within AWidth columns
@@ -471,6 +483,25 @@ begin
   Result := OSC + '0;' + ATitle + BEL;
 end;
 
+class function TTuiAnsi.IsWideChar(ACh: Char): Boolean;
+begin
+  var CP: Cardinal := Ord(ACh);
+  Result :=
+    ((CP >= $1100) and (CP <= $115F)) or  // Hangul Jamo
+    ((CP >= $2E80) and (CP <= $303F)) or  // CJK Radicals, Kangxi, CJK Symbols
+    ((CP >= $3040) and (CP <= $33FF)) or  // Hiragana, Katakana, Bopomofo, Hangul Compat.
+    ((CP >= $3400) and (CP <= $4DBF)) or  // CJK Ext-A
+    ((CP >= $4E00) and (CP <= $9FFF)) or  // CJK Unified Ideographs
+    ((CP >= $A000) and (CP <= $A4CF)) or  // Yi
+    ((CP >= $A960) and (CP <= $A97F)) or  // Hangul Jamo Extended-A
+    ((CP >= $AC00) and (CP <= $D7FF)) or  // Hangul Syllables + Jamo Ext-B
+    ((CP >= $F900) and (CP <= $FAFF)) or  // CJK Compatibility Ideographs
+    ((CP >= $FE10) and (CP <= $FE1F)) or  // Vertical Forms
+    ((CP >= $FE30) and (CP <= $FE6F)) or  // CJK Compat. Forms + Small Form Variants
+    ((CP >= $FF01) and (CP <= $FF60)) or  // Fullwidth Forms (EAW = F)
+    ((CP >= $FFE0) and (CP <= $FFE6));    // Fullwidth Signs (EAW = F)
+end;
+
 class function TTuiAnsi.VisibleLength(const AText: string): Integer;
 begin
   Result := 0;
@@ -511,10 +542,35 @@ begin
       end;
     end
     else begin
-      Inc(Result);
+      if IsWideChar(LChar) then
+        Inc(Result, 2)
+      else
+        Inc(Result);
       Inc(LIndex);
     end;
   end;
+end;
+
+class function TTuiAnsi.TruncateToWidth(const AText: string; AMaxWidth: Integer): string;
+begin
+  if AMaxWidth <= 0 then
+    Exit('');
+  var LCurrentWidth := 0;
+  var LIndex := 1;
+  while LIndex <= Length(AText) do
+  begin
+    var LChar := AText[LIndex];
+    var LCharWidth := 1;
+    if IsWideChar(LChar) then
+      LCharWidth := 2;
+
+    if LCurrentWidth + LCharWidth > AMaxWidth then
+      Break;
+
+    Inc(LCurrentWidth, LCharWidth);
+    Inc(LIndex);
+  end;
+  Result := Copy(AText, 1, LIndex - 1);
 end;
 
 class function TTuiAnsi.WrapText(const AText: string; AWidth: Integer): TArray<string>;

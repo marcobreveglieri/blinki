@@ -129,6 +129,7 @@ type
 implementation
 
 uses
+  Blinki.Core.Ansi,
   Blinki.Core.Input;
 
 { TTuiTextInput }
@@ -175,12 +176,16 @@ procedure TTuiTextInput.ClampViewOffset(AViewWidth: Integer);
 begin
   if AViewWidth <= 0 then
     Exit;
+
+  var LCursorCol := TTuiAnsi.VisibleLength(Copy(FText, 1, FCursorPos));
+
   // cursor is too far left relative to the viewport
-  if FCursorPos < FViewOffset then
-    FViewOffset := FCursorPos;
+  if LCursorCol < FViewOffset then
+    FViewOffset := LCursorCol;
   // cursor is too far right relative to the viewport
-  if FCursorPos >= FViewOffset + AViewWidth then
-    FViewOffset := FCursorPos - AViewWidth + 1;
+  if LCursorCol >= FViewOffset + AViewWidth then
+    FViewOffset := LCursorCol - AViewWidth + 1;
+
   if FViewOffset < 0 then
     FViewOffset := 0;
 end;
@@ -196,22 +201,36 @@ begin
 
   ACanvas.FillRect(ARect, ' ', LBase);
 
-  if (FText = '') and not Focused then
+  if (FText = '') and (not Focused) then
   begin
     // show placeholder
-    var LPlaceholder := Copy(FPlaceholder, 1, ARect.Width);
+    var LPlaceholder := TTuiAnsi.TruncateToWidth(FPlaceholder, ARect.Width);
     ACanvas.WriteAt(ARect.Left, ARect.Top, LPlaceholder, FPlaceholderStyle);
     Exit;
   end;
 
   var LDisplay := BuildDisplay;
   ClampViewOffset(ARect.Width);
-  var LVisible := Copy(LDisplay, FViewOffset + 1, ARect.Width);
+
+  // We need to find which part of LDisplay starts at FViewOffset (in columns)
+  var LSkipChars := 0;
+  var LSkipCols := 0;
+  while (LSkipChars < Length(LDisplay)) and (LSkipCols < FViewOffset) do
+  begin
+    Inc(LSkipChars);
+    LSkipCols := TTuiAnsi.VisibleLength(Copy(LDisplay, 1, LSkipChars));
+  end;
+
+  var LVisible := TTuiAnsi.TruncateToWidth(Copy(LDisplay, LSkipChars + 1), ARect.Width);
+  // If the first visible character is a WideChar and we are starting at an odd offset,
+  // we might need to pad with a space. For simplicity, we assume FViewOffset
+  // is always aligned or we just let it bleed.
   ACanvas.WriteAt(ARect.Left, ARect.Top, LVisible, LBase);
 
   if Focused then
   begin
-    var LCursorX := ARect.Left + (FCursorPos - FViewOffset);
+    var LCursorCol := TTuiAnsi.VisibleLength(Copy(LDisplay, 1, FCursorPos));
+    var LCursorX := ARect.Left + (LCursorCol - FViewOffset);
     if (LCursorX >= ARect.Left) and (LCursorX < ARect.Right) then
     begin
       var LCursorCh: Char;

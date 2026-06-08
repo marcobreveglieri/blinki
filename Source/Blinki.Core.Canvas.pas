@@ -128,9 +128,14 @@ type
     procedure Flush;
 
     /// <summary>
+    ///   Resizes both buffers to ANewSize. On resize, emits ClearScreen to 
+    ///   eliminate visual artefacts.
+    /// </summary>
+    procedure UpdateSize(const ANewSize: TSize);
+
+    /// <summary>
     ///   Queries Backend.GetSize and resizes both buffers if the dimensions have
-    ///   changed. On resize, emits ClearScreen to eliminate visual artefacts.
-    ///   Idempotent: no cost when no resize has occurred.
+    ///   changed. Idempotent: no cost when no resize has occurred.
     /// </summary>
     procedure HandleResize;
 
@@ -285,8 +290,16 @@ end;
 
 procedure TTuiCanvas.WriteAt(AX, AY: Integer; const AText: string; const AStyle: TTuiStyle);
 begin
+  var LColOffset := 0;
   for var LIndex := 1 to Length(AText) do
-    WriteCell(AX + LIndex - 1, AY, TTuiCell.Make(AText[LIndex], AStyle));
+  begin
+    var LChar := AText[LIndex];
+    WriteCell(AX + LColOffset, AY, TTuiCell.Make(LChar, AStyle));
+    if TTuiAnsi.IsWideChar(LChar) then
+      Inc(LColOffset, 2)
+    else
+      Inc(LColOffset, 1);
+  end;
 end;
 
 procedure TTuiCanvas.FillRect(const ARect: TRect; AFiller: Char; const AStyle: TTuiStyle);
@@ -365,26 +378,6 @@ begin
   end;
 end;
 
-// True for EAW = W/F characters (CJK, Hangul, Fullwidth): occupy 2 terminal columns.
-function IsWideChar(Ch: Char): Boolean;
-begin
-  var CP: Cardinal := Ord(Ch);
-  Result :=
-    ((CP >= $1100) and (CP <= $115F)) or  // Hangul Jamo
-    ((CP >= $2E80) and (CP <= $303F)) or  // CJK Radicals, Kangxi, CJK Symbols
-    ((CP >= $3040) and (CP <= $33FF)) or  // Hiragana, Katakana, Bopomofo, Hangul Compat.
-    ((CP >= $3400) and (CP <= $4DBF)) or  // CJK Ext-A
-    ((CP >= $4E00) and (CP <= $9FFF)) or  // CJK Unified Ideographs
-    ((CP >= $A000) and (CP <= $A4CF)) or  // Yi
-    ((CP >= $A960) and (CP <= $A97F)) or  // Hangul Jamo Extended-A
-    ((CP >= $AC00) and (CP <= $D7FF)) or  // Hangul Syllables + Jamo Ext-B
-    ((CP >= $F900) and (CP <= $FAFF)) or  // CJK Compatibility Ideographs
-    ((CP >= $FE10) and (CP <= $FE1F)) or  // Vertical Forms
-    ((CP >= $FE30) and (CP <= $FE6F)) or  // CJK Compat. Forms + Small Form Variants
-    ((CP >= $FF01) and (CP <= $FF60)) or  // Fullwidth Forms (EAW = F)
-    ((CP >= $FFE0) and (CP <= $FFE6));    // Fullwidth Signs (EAW = F)
-end;
-
 function TTuiCanvas.BuildFlushSequence: string;
 begin
   var LBuilder := TStringBuilder.Create(FBack.Width * FBack.Height * 8);
@@ -416,7 +409,7 @@ begin
         LBuilder.Append(LCell.Character);
 
         // Wide char (2 col): LX+1 is not visually adjacent; force CursorTo.
-        if IsWideChar(LCell.Character) then
+        if TTuiAnsi.IsWideChar(LCell.Character) then
           LLastX := LX + 1
         else
           LLastX := LX;
@@ -435,11 +428,6 @@ end;
 
 procedure TTuiCanvas.Flush;
 begin
-  // Check for resize before emitting
-  var LSize := FBackend.GetSize;
-  if (LSize.cx <> FBack.Width) or (LSize.cy <> FBack.Height) then
-    HandleResize;
-
   if not FDirty then
     Exit;
 
@@ -454,17 +442,21 @@ begin
   FDirty := False;
 end;
 
-procedure TTuiCanvas.HandleResize;
+procedure TTuiCanvas.UpdateSize(const ANewSize: TSize);
 begin
-  var LSize := FBackend.GetSize;
-  if (LSize.cx = FBack.Width) and (LSize.cy = FBack.Height) then
+  if (ANewSize.cx = FBack.Width) and (ANewSize.cy = FBack.Height) then
     Exit;
   // ClearScreen before resize to eliminate visual artefacts from the previous content
   FBackend.Write(TTuiAnsi.ClearScreen);
   FBackend.Flush;
-  FBack.Resize(LSize.cx, LSize.cy);
-  FFront.Resize(LSize.cx, LSize.cy);
+  FBack.Resize(ANewSize.cx, ANewSize.cy);
+  FFront.Resize(ANewSize.cx, ANewSize.cy);
   FDirty := True;
+end;
+
+procedure TTuiCanvas.HandleResize;
+begin
+  UpdateSize(FBackend.GetSize);
 end;
 
 end.

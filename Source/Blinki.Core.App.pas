@@ -522,7 +522,7 @@ begin
   if (LSize.cx = FLastSize.cx) and (LSize.cy = FLastSize.cy) then
     Exit;
   FLastSize := LSize;
-  FCanvas.HandleResize;
+  FCanvas.UpdateSize(LSize);
   FRoot.Invalidate;
   // Propagate invalidate to all modal overlays so they recentre on the next frame.
   for var LIdx := 0 to FModalStack.Count - 1 do

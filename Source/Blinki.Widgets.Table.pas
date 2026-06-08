@@ -222,24 +222,21 @@ begin
     Result := '';
     Exit;
   end;
-  var LTrunc: string;
-  if Length(AText) > AWidth then
-    LTrunc := Copy(AText, 1, AWidth)
-  else
-    LTrunc := AText;
+  var LTrunc := TTuiAnsi.TruncateToWidth(AText, AWidth);
+  var LVisibleLen := TTuiAnsi.VisibleLength(LTrunc);
   case AAlign of
     taLeft:
-      Result := LTrunc + StringOfChar(' ', AWidth - Length(LTrunc));
+      Result := LTrunc + StringOfChar(' ', AWidth - LVisibleLen);
     taRight:
-      Result := StringOfChar(' ', AWidth - Length(LTrunc)) + LTrunc;
+      Result := StringOfChar(' ', AWidth - LVisibleLen) + LTrunc;
     taCenter:
     begin
-      var LPad := (AWidth - Length(LTrunc)) div 2;
+      var LPad := (AWidth - LVisibleLen) div 2;
       Result := StringOfChar(' ', LPad) + LTrunc
-              + StringOfChar(' ', AWidth - Length(LTrunc) - LPad);
+              + StringOfChar(' ', AWidth - LVisibleLen - LPad);
     end;
   else
-    Result := LTrunc + StringOfChar(' ', AWidth - Length(LTrunc));
+    Result := LTrunc + StringOfChar(' ', AWidth - LVisibleLen);
   end;
 end;
 
@@ -436,10 +433,10 @@ begin
     end
     else
     begin
-      var LMaxW := Length(FColumns[LIndex].Caption);
+      var LMaxW := TTuiAnsi.VisibleLength(FColumns[LIndex].Caption);
       for var LJ := 0 to FRows.Count - 1 do
         if LIndex < Length(FRows[LJ]) then
-          LMaxW := Max(LMaxW, Length(FRows[LJ][LIndex]));
+          LMaxW := Max(LMaxW, TTuiAnsi.VisibleLength(FRows[LJ][LIndex]));
       LMaxW := Min(Max(LMaxW, 1), 32);
       AWidths[LIndex] := LMaxW;
       Inc(LAutoSumW, LMaxW);

@@ -456,9 +456,11 @@ begin
   var LLine := '';
   for var LWord in LWords do
   begin
+    var LWordLen := TTuiAnsi.VisibleLength(LWord);
+    var LLineLen := TTuiAnsi.VisibleLength(LLine);
     if LLine = '' then
       LLine := LWord
-    else if Length(LLine) + 1 + Length(LWord) <= AWidth then
+    else if LLineLen + 1 + LWordLen <= AWidth then
       LLine := LLine + ' ' + LWord
     else
     begin
@@ -710,7 +712,7 @@ begin
     var LCaptions := GetButtonCaptions;
     var LBtnWidth := 0;
     for var S in LCaptions do
-      Inc(LBtnWidth, Length(S) + 4); // "[ X ]"
+      Inc(LBtnWidth, TTuiAnsi.VisibleLength(S) + 4); // "[ X ]"
     if Length(LCaptions) > 1 then
       Inc(LBtnWidth, (Length(LCaptions) - 1) * 2);
     Result := Max(LBtnWidth + 6, CDefaultDialogWidth);
@@ -737,7 +739,7 @@ begin
   // Compute total rendered width of all buttons and gaps.
   var LTotalWidth := 0;
   for var LI := 0 to LCount - 1 do
-    Inc(LTotalWidth, Length(LCaptions[LI]) + 4); // "[ X ]"
+    Inc(LTotalWidth, TTuiAnsi.VisibleLength(LCaptions[LI]) + 4); // "[ X ]"
   if LCount > 1 then
     Inc(LTotalWidth, (LCount - 1) * 2); // 2-char gaps between buttons
 
@@ -755,8 +757,8 @@ begin
       LStyle := FButtonNormalStyle;
     ACanvas.WriteAt(LCurX, LY, LCaption, LStyle);
     FButtonRects[LI] := TRect.Create(LCurX, LY,
-      LCurX + Length(LCaption), LY + 1);
-    Inc(LCurX, Length(LCaption) + 2);
+      LCurX + TTuiAnsi.VisibleLength(LCaption), LY + 1);
+    Inc(LCurX, TTuiAnsi.VisibleLength(LCaption) + 2);
   end;
 end;
 
