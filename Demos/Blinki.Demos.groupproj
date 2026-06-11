@@ -1,8 +1,11 @@
-<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
         <ProjectGuid>{117E1A87-E981-4764-B367-A4DC9B3A06C1}</ProjectGuid>
     </PropertyGroup>
     <ItemGroup>
+        <Projects Include="..\Source\Blinki.dproj">
+            <Dependencies/>
+        </Projects>
         <Projects Include="TeamChat\TeamChat.dproj">
             <Dependencies/>
         </Projects>
@@ -59,6 +62,15 @@
             <Default.Personality/>
         </BorlandProject>
     </ProjectExtensions>
+    <Target Name="Blinki">
+        <MSBuild Projects="..\Source\Blinki.dproj"/>
+    </Target>
+    <Target Name="Blinki:Clean">
+        <MSBuild Projects="..\Source\Blinki.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Blinki:Make">
+        <MSBuild Projects="..\Source\Blinki.dproj" Targets="Make"/>
+    </Target>
     <Target Name="TeamChat">
         <MSBuild Projects="TeamChat\TeamChat.dproj"/>
     </Target>
@@ -204,13 +216,13 @@
         <MSBuild Projects="DelphiDay\DelphiDay.dproj" Targets="Make"/>
     </Target>
     <Target Name="Build">
-        <CallTarget Targets="TeamChat;TaskManager;FileManager;Tetris;Scaffold;Recorder;Kanban;CryptoTracker;WorldCup;Dashboard;ResTui;SysMonitor;Form;DataViewer;EffectsShowcase;DelphiDay"/>
+        <CallTarget Targets="Blinki;TeamChat;TaskManager;FileManager;Tetris;Scaffold;Recorder;Kanban;CryptoTracker;WorldCup;Dashboard;ResTui;SysMonitor;Form;DataViewer;EffectsShowcase;DelphiDay"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="TeamChat:Clean;TaskManager:Clean;FileManager:Clean;Tetris:Clean;Scaffold:Clean;Recorder:Clean;Kanban:Clean;CryptoTracker:Clean;WorldCup:Clean;Dashboard:Clean;ResTui:Clean;SysMonitor:Clean;Form:Clean;DataViewer:Clean;EffectsShowcase:Clean;DelphiDay:Clean"/>
+        <CallTarget Targets="Blinki:Clean;TeamChat:Clean;TaskManager:Clean;FileManager:Clean;Tetris:Clean;Scaffold:Clean;Recorder:Clean;Kanban:Clean;CryptoTracker:Clean;WorldCup:Clean;Dashboard:Clean;ResTui:Clean;SysMonitor:Clean;Form:Clean;DataViewer:Clean;EffectsShowcase:Clean;DelphiDay:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="TeamChat:Make;TaskManager:Make;FileManager:Make;Tetris:Make;Scaffold:Make;Recorder:Make;Kanban:Make;CryptoTracker:Make;WorldCup:Make;Dashboard:Make;ResTui:Make;SysMonitor:Make;Form:Make;DataViewer:Make;EffectsShowcase:Make;DelphiDay:Make"/>
+        <CallTarget Targets="Blinki:Make;TeamChat:Make;TaskManager:Make;FileManager:Make;Tetris:Make;Scaffold:Make;Recorder:Make;Kanban:Make;CryptoTracker:Make;WorldCup:Make;Dashboard:Make;ResTui:Make;SysMonitor:Make;Form:Make;DataViewer:Make;EffectsShowcase:Make;DelphiDay:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>

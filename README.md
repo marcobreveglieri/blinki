@@ -209,6 +209,10 @@ with the greeting. Three pillars of Blinki in one go:
 
 ## Installation
 
+Below you will find all the instructions to install and start using the library in your projects.
+
+### Basic setup
+
 1. Clone or download this repository.
 2. In your Delphi project options, add `<repo>\Source` to the **Unit Search Path**.
 3. Add the units you need to your `uses` clause.
@@ -216,12 +220,34 @@ with the greeting. Three pillars of Blinki in one go:
 That's it — all source units are plain `.pas` files, with no generated code, no design-time
 components, and no IDE integration required.
 
+### Installing with Blocks (package manager)
+
+Prefer a package manager? Blinki is published in the official [Blocks community repository](https://github.com/delphi-blocks/blocks-repository) as `marcobreveglieri.blinki`.
+
+[Blocks](https://github.com/delphi-blocks/blocks) downloads, compiles, and wires versioned Delphi packages into your IDE for you.
+
+```bat
+:: Install the Blocks CLI once (requires Windows + winget)
+winget install DelphiBlocks.Blocks
+
+:: From your project folder: initialize the workspace and pick your Delphi version
+blocks init
+
+:: Add Blinki to the project
+blocks install marcobreveglieri.blinki
+```
+
+Blocks fetches the sources, compiles the `Blinki` runtime package with MSBuild, and registers the library and search paths in your IDE — then just `uses` the units you need.
+
+> [!TIP]
+>
+> To pin a specific release, append a SemVer constraint, e.g. `blocks install marcobreveglieri.blinki@^0.1.0`.
+
 ---
 
 ## Widget Catalog
 
-Blinki ships **24 built-in widgets** organized into six categories. See the full reference in
-[Widget Catalog](Wiki/Widget-Catalog.md).
+Blinki ships **24 built-in widgets** organized into six categories. See the full reference in [Widget Catalog](Wiki/Widget-Catalog.md).
 
 ### Text & Static
 
