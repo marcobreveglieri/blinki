@@ -1,0 +1,31 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Blinki
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Marco
+    family-names: Breveglieri
+    email: brevve@gmail.com
+repository-code: 'https://github.com/marcobreveglieri/blinki'
+url: 'https://github.com/marcobreveglieri/blinki/wiki'
+abstract: >-
+  Blinki is an open-source Delphi library for building rich
+  Terminal User Interface (TUI) applications. Instead of
+  hand-coding ANSI escape sequences, managing screen
+  buffers, or tracking dirty regions yourself, Blinki gives
+  you a declarative widget tree, a constraint-based layout
+  engine, and a built-in double-buffered renderer — all
+  driven by a clean, single-threaded event loop.
+
+
+  Write Delphi, see a polished UI in the terminal.
+keywords:
+  - tui
+  - terminal
+  - delphi
+license: MIT
