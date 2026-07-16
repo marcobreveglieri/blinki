@@ -39,6 +39,9 @@
         <Projects Include="DialogSmoke\DialogSmoke.dproj">
             <Dependencies/>
         </Projects>
+        <Projects Include="EmojiSmoke\EmojiSmoke.dproj">
+            <Dependencies/>
+        </Projects>
     </ItemGroup>
     <ProjectExtensions>
         <Borland.Personality>Default.Personality.12</Borland.Personality>
@@ -155,14 +158,23 @@
     <Target Name="DialogSmoke:Make">
         <MSBuild Projects="DialogSmoke\DialogSmoke.dproj" Targets="Make"/>
     </Target>
+    <Target Name="EmojiSmoke">
+        <MSBuild Projects="EmojiSmoke\EmojiSmoke.dproj"/>
+    </Target>
+    <Target Name="EmojiSmoke:Clean">
+        <MSBuild Projects="EmojiSmoke\EmojiSmoke.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="EmojiSmoke:Make">
+        <MSBuild Projects="EmojiSmoke\EmojiSmoke.dproj" Targets="Make"/>
+    </Target>
     <Target Name="Build">
-        <CallTarget Targets="Blinki;AppSmoke;CanvasSmoke;Smoke;LayoutSmoke;FeedbackSmoke;InteractiveSmoke;DashboardSmoke;TableSmoke;Widgets9ASmoke;FxSmoke;DialogSmoke"/>
+        <CallTarget Targets="Blinki;AppSmoke;CanvasSmoke;Smoke;LayoutSmoke;FeedbackSmoke;InteractiveSmoke;DashboardSmoke;TableSmoke;Widgets9ASmoke;FxSmoke;DialogSmoke;EmojiSmoke"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="Blinki:Clean;AppSmoke:Clean;CanvasSmoke:Clean;Smoke:Clean;LayoutSmoke:Clean;FeedbackSmoke:Clean;InteractiveSmoke:Clean;DashboardSmoke:Clean;TableSmoke:Clean;Widgets9ASmoke:Clean;FxSmoke:Clean;DialogSmoke:Clean"/>
+        <CallTarget Targets="Blinki:Clean;AppSmoke:Clean;CanvasSmoke:Clean;Smoke:Clean;LayoutSmoke:Clean;FeedbackSmoke:Clean;InteractiveSmoke:Clean;DashboardSmoke:Clean;TableSmoke:Clean;Widgets9ASmoke:Clean;FxSmoke:Clean;DialogSmoke:Clean;EmojiSmoke:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="Blinki:Make;AppSmoke:Make;CanvasSmoke:Make;Smoke:Make;LayoutSmoke:Make;FeedbackSmoke:Make;InteractiveSmoke:Make;DashboardSmoke:Make;TableSmoke:Make;Widgets9ASmoke:Make;FxSmoke:Make;DialogSmoke:Make"/>
+        <CallTarget Targets="Blinki:Make;AppSmoke:Make;CanvasSmoke:Make;Smoke:Make;LayoutSmoke:Make;FeedbackSmoke:Make;InteractiveSmoke:Make;DashboardSmoke:Make;TableSmoke:Make;Widgets9ASmoke:Make;FxSmoke:Make;DialogSmoke:Make;EmojiSmoke:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>

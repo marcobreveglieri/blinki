@@ -92,6 +92,11 @@ external dependencies, no DLLs, no design-time components, and no package to ins
 
 - 🎨 **Looks good by default** — semantic theming (Dark/Light), 24-bit true-color, and Unicode
   box-drawing with rounded/double/heavy borders.
+- 😀 **Extended emoji support** — grapheme-cluster aware rendering, measurement, and editing:
+  astral-plane emoji, ZWJ sequences (👨‍👩‍👧), skin tones (👍🏽), flags (🇮🇹), and variation
+  selectors (☀️) render as single, correctly-sized glyphs. A `:shortcode:` catalog
+  (`TTuiEmoji.Expand('deploy :rocket:')`) is included, and width rules adapt automatically to
+  the terminal's capabilities (`TTuiUnicode.EmojiLevel`).
 - 🧩 **24 built-in widgets** across six categories — from labels and buttons to tables, charts,
   dialogs, and animated effects.
 - 📐 **Constraint-based layout engine** — `VStack`, `HStack`, `Grid`, and `Scrollable` containers
@@ -367,7 +372,7 @@ A **full project Wiki** is under construction.
 The coding style is documented in [`STYLE_GUIDE.md`](STYLE_GUIDE.md).
 
 > [!WARNING]
-> **Blinki is highly experimental and under active, heavy development**. Breaking changes are expected at any time as the library undergoes a massive refactoring to reach high production quality. Planned work includes new widgets, evaluation of extended emoji support, comprehensive documentation, and an in-depth code review pass.
+> **Blinki is highly experimental and under active, heavy development**. Breaking changes are expected at any time as the library undergoes a massive refactoring to reach high production quality. Planned work includes new widgets, comprehensive documentation, and an in-depth code review pass.
 > Use it for experimentation and learning, but **no warranty of any kind is provided**.
 
 ---

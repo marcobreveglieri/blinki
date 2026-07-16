@@ -131,7 +131,11 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
+        <DCCReference Include="Blinki.UnitTests.Core.Ansi.pas"/>
+        <DCCReference Include="Blinki.UnitTests.Core.Emoji.pas"/>
         <DCCReference Include="Blinki.UnitTests.Core.Geometry.pas"/>
+        <DCCReference Include="Blinki.UnitTests.Core.Render.pas"/>
+        <DCCReference Include="Blinki.UnitTests.Core.Unicode.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

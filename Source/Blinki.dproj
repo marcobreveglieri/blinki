@@ -123,11 +123,13 @@
         <DCCReference Include="Blinki.Core.Console.pas"/>
         <DCCReference Include="Blinki.Core.Console.Posix.pas"/>
         <DCCReference Include="Blinki.Core.Console.Windows.pas"/>
+        <DCCReference Include="Blinki.Core.Emoji.pas"/>
         <DCCReference Include="Blinki.Core.Event.pas"/>
         <DCCReference Include="Blinki.Core.Geometry.pas"/>
         <DCCReference Include="Blinki.Core.Input.pas"/>
         <DCCReference Include="Blinki.Core.Render.pas"/>
         <DCCReference Include="Blinki.Core.Style.pas"/>
+        <DCCReference Include="Blinki.Core.Unicode.pas"/>
         <DCCReference Include="Blinki.Core.Widget.pas"/>
         <DCCReference Include="Blinki.Layout.Grid.pas"/>
         <DCCReference Include="Blinki.Layout.Scrollable.pas"/>

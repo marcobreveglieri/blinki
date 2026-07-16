@@ -68,6 +68,8 @@ type
     FCursorStyle: TTuiStyle;
     FNormalStyleOverride: Boolean;
     FFocusedStyleOverride: Boolean;
+    function  DisplayCursorPos: Integer;
+    function  SnapCursorToBoundary(AValue: Integer): Integer;
     procedure SetText(const AValue: string);
     procedure SetCursorPos(AValue: Integer);
     procedure SetPlaceholder(const AValue: string);
@@ -76,7 +78,8 @@ type
     procedure SetNormalStyle(const AValue: TTuiStyle);
     procedure SetFocusedStyle(const AValue: TTuiStyle);
     procedure RebuildStyles;
-    procedure ClampViewOffset(AViewWidth: Integer);
+    procedure ClampViewOffset(const ADisplay: string;
+      ADisplayCursorPos, AViewWidth: Integer);
     function  BuildDisplay: string;
   protected
     procedure DoInit; override;
@@ -93,7 +96,10 @@ type
     /// </summary>
     property Text: string read FText write SetText;
     /// <summary>
-    ///   Cursor position (0 = before the first character, Length(Text) = after the last one).
+    ///   Cursor position in UTF-16 code units (0 = before the first character,
+    ///   Length(Text) = after the last one). Always kept on a grapheme cluster
+    ///   boundary: assigned values that fall inside a cluster (e.g. in the
+    ///   middle of an emoji sequence) snap back to the cluster start.
     /// </summary>
     property CursorPos: Integer read FCursorPos write SetCursorPos;
     /// <summary>
@@ -130,7 +136,8 @@ implementation
 
 uses
   Blinki.Core.Ansi,
-  Blinki.Core.Input;
+  Blinki.Core.Input,
+  Blinki.Core.Unicode;
 
 { TTuiTextInput }
 
@@ -164,20 +171,60 @@ function TTuiTextInput.BuildDisplay: string;
 begin
   if FPasswordChar <> #0 then
   begin
+    // One mask character per grapheme cluster, so an emoji counts as a
+    // single masked position, not one per UTF-16 code unit.
     Result := '';
-    for var LIndex := 1 to Length(FText) do
+    var LIndex := 1;
+    while LIndex <= Length(FText) do
+    begin
       Result := Result + FPasswordChar;
+      LIndex := TTuiUnicode.NextGraphemeBoundary(FText, LIndex);
+    end;
   end
   else
     Result := FText;
 end;
 
-procedure TTuiTextInput.ClampViewOffset(AViewWidth: Integer);
+function TTuiTextInput.DisplayCursorPos: Integer;
+begin
+  if FPasswordChar = #0 then
+    Exit(FCursorPos);
+  // In password mode the display holds one mask char per cluster: the
+  // cursor position is the number of clusters before it.
+  Result := 0;
+  var LIndex := 1;
+  while LIndex <= FCursorPos do
+  begin
+    Inc(Result);
+    LIndex := TTuiUnicode.NextGraphemeBoundary(FText, LIndex);
+  end;
+end;
+
+function TTuiTextInput.SnapCursorToBoundary(AValue: Integer): Integer;
+begin
+  if AValue <= 0 then
+    Exit(0);
+  if AValue >= Length(FText) then
+    Exit(Length(FText));
+  // Find the largest cluster boundary not beyond AValue.
+  var LBoundary := 1;
+  while LBoundary <= AValue do
+  begin
+    var LNext := TTuiUnicode.NextGraphemeBoundary(FText, LBoundary);
+    if LNext > AValue + 1 then
+      Break;
+    LBoundary := LNext;
+  end;
+  Result := LBoundary - 1;
+end;
+
+procedure TTuiTextInput.ClampViewOffset(const ADisplay: string;
+  ADisplayCursorPos, AViewWidth: Integer);
 begin
   if AViewWidth <= 0 then
     Exit;
 
-  var LCursorCol := TTuiAnsi.VisibleLength(Copy(FText, 1, FCursorPos));
+  var LCursorCol := TTuiAnsi.VisibleLength(Copy(ADisplay, 1, ADisplayCursorPos));
 
   // cursor is too far left relative to the viewport
   if LCursorCol < FViewOffset then
@@ -210,35 +257,38 @@ begin
   end;
 
   var LDisplay := BuildDisplay;
-  ClampViewOffset(ARect.Width);
+  var LDisplayCursor := DisplayCursorPos;
+  ClampViewOffset(LDisplay, LDisplayCursor, ARect.Width);
 
-  // We need to find which part of LDisplay starts at FViewOffset (in columns)
-  var LSkipChars := 0;
+  // Find which part of LDisplay starts at FViewOffset (in columns), skipping
+  // whole grapheme clusters so surrogate pairs and emoji sequences never split.
+  var LSkipIndex := 1;
   var LSkipCols := 0;
-  while (LSkipChars < Length(LDisplay)) and (LSkipCols < FViewOffset) do
+  while (LSkipIndex <= Length(LDisplay)) and (LSkipCols < FViewOffset) do
   begin
-    Inc(LSkipChars);
-    LSkipCols := TTuiAnsi.VisibleLength(Copy(LDisplay, 1, LSkipChars));
+    var LLen := TTuiUnicode.GraphemeLengthAt(LDisplay, LSkipIndex);
+    Inc(LSkipCols, TTuiUnicode.ClusterWidthAt(LDisplay, LSkipIndex, LLen));
+    Inc(LSkipIndex, LLen);
   end;
 
-  var LVisible := TTuiAnsi.TruncateToWidth(Copy(LDisplay, LSkipChars + 1), ARect.Width);
-  // If the first visible character is a WideChar and we are starting at an odd offset,
-  // we might need to pad with a space. For simplicity, we assume FViewOffset
-  // is always aligned or we just let it bleed.
+  var LVisible := TTuiAnsi.TruncateToWidth(Copy(LDisplay, LSkipIndex), ARect.Width);
   ACanvas.WriteAt(ARect.Left, ARect.Top, LVisible, LBase);
 
   if Focused then
   begin
-    var LCursorCol := TTuiAnsi.VisibleLength(Copy(LDisplay, 1, FCursorPos));
+    var LCursorCol := TTuiAnsi.VisibleLength(Copy(LDisplay, 1, LDisplayCursor));
     var LCursorX := ARect.Left + (LCursorCol - FViewOffset);
     if (LCursorX >= ARect.Left) and (LCursorX < ARect.Right) then
     begin
-      var LCursorCh: Char;
-      if FCursorPos < Length(LDisplay) then
-        LCursorCh := LDisplay[FCursorPos + 1]
+      // Highlight the whole cluster under the cursor, not just its first
+      // code unit, so the inverse-video block covers the entire emoji.
+      var LCursorText: string;
+      if LDisplayCursor < Length(LDisplay) then
+        LCursorText := Copy(LDisplay, LDisplayCursor + 1,
+          TTuiUnicode.GraphemeLengthAt(LDisplay, LDisplayCursor + 1))
       else
-        LCursorCh := ' ';
-      ACanvas.WriteAt(LCursorX, ARect.Top, LCursorCh, FCursorStyle);
+        LCursorText := ' ';
+      ACanvas.WriteAt(LCursorX, ARect.Top, LCursorText, FCursorStyle);
     end;
   end;
 end;
@@ -251,25 +301,30 @@ begin
 
   case AEvent.Key.Code of
     kcChar, kcSpace:
-      if ((AEvent.Key.Code = kcSpace) or AEvent.Key.IsPrintable) and
-         ((FMaxLength = 0) or (Length(FText) < FMaxLength)) then
+      if (AEvent.Key.Code = kcSpace) or AEvent.Key.IsPrintable then
       begin
-        if AEvent.Key.Code = kcSpace then
-          Insert(' ', FText, FCursorPos + 1)
-        else
-          Insert(AEvent.Key.Character, FText, FCursorPos + 1);
-        Inc(FCursorPos);
-        if Assigned(FOnTextChanged) then
-          FOnTextChanged(FText);
-        Invalidate;
-        Result := True;
+        // CharText may span two code units (emoji beyond the BMP): MaxLength
+        // stays measured in UTF-16 code units, so check the insertion fits.
+        var LInsert := AEvent.Key.CharText;
+        if (FMaxLength = 0) or (Length(FText) + Length(LInsert) <= FMaxLength) then
+        begin
+          Insert(LInsert, FText, FCursorPos + 1);
+          Inc(FCursorPos, Length(LInsert));
+          if Assigned(FOnTextChanged) then
+            FOnTextChanged(FText);
+          Invalidate;
+          Result := True;
+        end;
       end;
 
     kcBackspace:
       if FCursorPos > 0 then
       begin
-        Delete(FText, FCursorPos, 1);
-        Dec(FCursorPos);
+        // Delete the whole grapheme cluster before the cursor (an emoji
+        // sequence disappears in one keystroke, like in any editor).
+        var LStart := TTuiUnicode.PrevGraphemeBoundary(FText, FCursorPos + 1);
+        Delete(FText, LStart, FCursorPos + 1 - LStart);
+        FCursorPos := LStart - 1;
         if Assigned(FOnTextChanged) then
           FOnTextChanged(FText);
         Invalidate;
@@ -279,7 +334,8 @@ begin
     kcDelete:
       if FCursorPos < Length(FText) then
       begin
-        Delete(FText, FCursorPos + 1, 1);
+        Delete(FText, FCursorPos + 1,
+          TTuiUnicode.GraphemeLengthAt(FText, FCursorPos + 1));
         if Assigned(FOnTextChanged) then
           FOnTextChanged(FText);
         Invalidate;
@@ -288,9 +344,9 @@ begin
 
     kcLeft:
       begin
-        var LNewPos := FCursorPos - 1;
-        if LNewPos < 0 then
-          LNewPos := 0;
+        var LNewPos := FCursorPos;
+        if FCursorPos > 0 then
+          LNewPos := TTuiUnicode.PrevGraphemeBoundary(FText, FCursorPos + 1) - 1;
         if LNewPos <> FCursorPos then
         begin
           FCursorPos := LNewPos;
@@ -301,9 +357,9 @@ begin
 
     kcRight:
       begin
-        var LNewPos := FCursorPos + 1;
-        if LNewPos > Length(FText) then
-          LNewPos := Length(FText);
+        var LNewPos := FCursorPos;
+        if FCursorPos < Length(FText) then
+          LNewPos := TTuiUnicode.NextGraphemeBoundary(FText, FCursorPos + 1) - 1;
         if LNewPos <> FCursorPos then
         begin
           FCursorPos := LNewPos;
@@ -349,6 +405,7 @@ begin
   FText := AValue;
   if FCursorPos > Length(FText) then
     FCursorPos := Length(FText);
+  FCursorPos := SnapCursorToBoundary(FCursorPos);
   FViewOffset := 0;
   Invalidate;
 end;
@@ -359,6 +416,7 @@ begin
     AValue := 0;
   if AValue > Length(FText) then
     AValue := Length(FText);
+  AValue := SnapCursorToBoundary(AValue);
   if FCursorPos = AValue then
     Exit;
   FCursorPos := AValue;
@@ -388,9 +446,11 @@ begin
   FMaxLength := AValue;
   if (FMaxLength > 0) and (Length(FText) > FMaxLength) then
   begin
-    FText := Copy(FText, 1, FMaxLength);
-    if FCursorPos > FMaxLength then
-      FCursorPos := FMaxLength;
+    // Cut on a cluster boundary so the truncation never leaves half an emoji.
+    var LCut := SnapCursorToBoundary(FMaxLength);
+    FText := Copy(FText, 1, LCut);
+    if FCursorPos > LCut then
+      FCursorPos := LCut;
   end;
   Invalidate;
 end;

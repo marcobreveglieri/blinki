@@ -23,8 +23,10 @@
 
 /// <summary>
 ///   Frame-buffer data model for Blinki's double-buffered rendering.
-///   TTuiCell represents a single terminal cell (character + style).
-///   TTuiFrameBuffer manages a row-major grid of TTuiCell.
+///   TTuiCell represents a single terminal cell (character or grapheme
+///   cluster + style). TTuiFrameBuffer manages a row-major grid of TTuiCell.
+///   TTuiClusterPool interns multi-code-unit grapheme clusters (emoji ZWJ
+///   sequences, flags, skin tones) so that cells stay small unmanaged records.
 /// </summary>
 /// <remarks>
 ///   No I/O dependency: this unit is pure data structure.
@@ -39,8 +41,10 @@ unit Blinki.Core.Render;
 interface
 
 uses
+  System.Generics.Collections,
   System.SysUtils,
-  Blinki.Core.Style;
+  Blinki.Core.Style,
+  Blinki.Core.Unicode;
 
 type
 
@@ -51,18 +55,65 @@ type
   /// </summary>
   ETuiRenderError = class(Exception);
 
+{ TTuiClusterPool }
+
+  /// <summary>
+  ///   Process-wide interning pool for multi-code-unit grapheme clusters
+  ///   displayed in terminal cells. A cell stores a 32-bit id into this pool,
+  ///   which keeps TTuiCell an unmanaged record (safe for Move-based buffer
+  ///   copies) while supporting emoji sequences of any length.
+  /// </summary>
+  /// <remarks>
+  ///   Not thread-safe: like TTuiCanvas, it must be used from the event-loop
+  ///   thread only. Entries are never evicted; growth is bounded by the number
+  ///   of distinct clusters ever displayed (typically dozens).
+  /// </remarks>
+  TTuiClusterPool = class sealed
+  strict private
+    class var FClusters: TList<string>;
+    class var FIds: TDictionary<string, UInt32>;
+  public
+    /// <summary>
+    ///   Returns the id of ACluster, adding it to the pool on first use.
+    ///   Passing an empty string returns 0 (the "no cluster" id).
+    /// </summary>
+    class function Intern(const ACluster: string): UInt32; static;
+    /// <summary>
+    ///   Returns the cluster text for AId, or an empty string for id 0.
+    /// </summary>
+    class function Resolve(AId: UInt32): string; static;
+    /// <summary>
+    ///   Terminal width in columns of the cluster AId, measured with the
+    ///   current TTuiUnicode.EmojiLevel. At least 1.
+    /// </summary>
+    class function WidthOf(AId: UInt32): Integer; static;
+    /// <summary>
+    ///   Frees the pool storage. Called from unit finalization.
+    /// </summary>
+    class procedure Shutdown; static;
+  end;
+
 { TTuiCell }
 
   /// <summary>
-  ///   Represents a single terminal cell: a Unicode character and its style.
-  ///   Value type with equality operators for the diff renderer of TTuiCanvas.
+  ///   Represents a single terminal cell: a Unicode character (or an interned
+  ///   grapheme cluster) and its style. Value type with equality operators for
+  ///   the diff renderer of TTuiCanvas. Multi-column glyphs occupy one head
+  ///   cell followed by continuation cells (Character = #0) that are never
+  ///   emitted to the terminal.
   /// </summary>
   TTuiCell = record
   public
     /// <summary>
-    /// Character to display in the cell.
+    ///   Character to display in the cell. #0 marks a continuation cell:
+    ///   the column is covered by the multi-column glyph on its left.
     /// </summary>
     Character: Char;
+    /// <summary>
+    ///   Id of the grapheme cluster in TTuiClusterPool, or 0 when the cell
+    ///   holds the single code unit in Character.
+    /// </summary>
+    ClusterId: UInt32;
     /// <summary>
     /// Style (foreground, background, attributes) of the cell.
     /// </summary>
@@ -72,9 +123,35 @@ type
     /// </summary>
     class function Make(ACharacter: Char; const AStyle: TTuiStyle): TTuiCell; static; inline;
     /// <summary>
+    ///   Creates a cell holding a whole grapheme cluster (e.g. an emoji ZWJ
+    ///   sequence). Single-code-unit input produces a plain character cell;
+    ///   empty input produces a blank cell with the given style.
+    /// </summary>
+    class function MakeCluster(const ACluster: string; const AStyle: TTuiStyle): TTuiCell; static;
+    /// <summary>
+    ///   Creates a continuation cell: a placeholder for the second and
+    ///   following columns of a multi-column glyph.
+    /// </summary>
+    class function Continuation(const AStyle: TTuiStyle): TTuiCell; static; inline;
+    /// <summary>
     /// Blank cell: a space character with the terminal's default style.
     /// </summary>
     class function Blank: TTuiCell; static; inline;
+    /// <summary>
+    ///   True when this cell is a continuation placeholder of the
+    ///   multi-column glyph that starts on its left.
+    /// </summary>
+    function IsContinuation: Boolean; inline;
+    /// <summary>
+    ///   The text this cell emits to the terminal: the interned cluster when
+    ///   ClusterId is set, the single character otherwise.
+    /// </summary>
+    function Text: string;
+    /// <summary>
+    ///   Number of terminal columns this cell's glyph occupies (at least 1).
+    ///   Continuation cells report 1 but are skipped by the flush.
+    /// </summary>
+    function Width: Integer;
     /// <inheritdoc/>
     class operator Equal(const A, B: TTuiCell): Boolean; inline;
     /// <inheritdoc/>
@@ -133,23 +210,112 @@ type
 
 implementation
 
+{ TTuiClusterPool }
+
+class function TTuiClusterPool.Intern(const ACluster: string): UInt32;
+begin
+  if ACluster = '' then
+    Exit(0);
+  if not Assigned(FIds) then
+  begin
+    FIds := TDictionary<string, UInt32>.Create;
+    FClusters := TList<string>.Create;
+  end;
+  if FIds.TryGetValue(ACluster, Result) then
+    Exit;
+  FClusters.Add(ACluster);
+  Result := UInt32(FClusters.Count); // ids are 1-based; 0 = no cluster
+  FIds.Add(ACluster, Result);
+end;
+
+class function TTuiClusterPool.Resolve(AId: UInt32): string;
+begin
+  if (AId = 0) or not Assigned(FClusters) or (Integer(AId) > FClusters.Count) then
+    Exit('');
+  Result := FClusters[Integer(AId) - 1];
+end;
+
+class function TTuiClusterPool.WidthOf(AId: UInt32): Integer;
+begin
+  // Measured on demand (not cached at intern time) so that a change of
+  // TTuiUnicode.EmojiLevel is picked up immediately. Clusters are short and
+  // rare in a frame, so the cost is negligible.
+  var LCluster := Resolve(AId);
+  Result := TTuiUnicode.ClusterWidthAt(LCluster, 1, Length(LCluster));
+  if Result < 1 then
+    Result := 1;
+end;
+
+class procedure TTuiClusterPool.Shutdown;
+begin
+  if Assigned(FIds) then
+    FreeAndNil(FIds);
+  if Assigned(FClusters) then
+    FreeAndNil(FClusters);
+end;
+
 { TTuiCell }
 
 class function TTuiCell.Make(ACharacter: Char; const AStyle: TTuiStyle): TTuiCell;
 begin
   Result.Character := ACharacter;
+  Result.ClusterId := 0;
+  Result.Style := AStyle;
+end;
+
+class function TTuiCell.MakeCluster(const ACluster: string;
+  const AStyle: TTuiStyle): TTuiCell;
+begin
+  if ACluster = '' then
+    Exit(Make(' ', AStyle));
+  if Length(ACluster) = 1 then
+    Exit(Make(ACluster[1], AStyle));
+  Result.Character := ACluster[1];
+  Result.ClusterId := TTuiClusterPool.Intern(ACluster);
+  Result.Style := AStyle;
+end;
+
+class function TTuiCell.Continuation(const AStyle: TTuiStyle): TTuiCell;
+begin
+  Result.Character := #0;
+  Result.ClusterId := 0;
   Result.Style := AStyle;
 end;
 
 class function TTuiCell.Blank: TTuiCell;
 begin
   Result.Character := ' ';
+  Result.ClusterId := 0;
   Result.Style := TTuiStyle.Default;
+end;
+
+function TTuiCell.IsContinuation: Boolean;
+begin
+  Result := (Character = #0) and (ClusterId = 0);
+end;
+
+function TTuiCell.Text: string;
+begin
+  if ClusterId <> 0 then
+    Result := TTuiClusterPool.Resolve(ClusterId)
+  else
+    Result := Character;
+end;
+
+function TTuiCell.Width: Integer;
+begin
+  if ClusterId <> 0 then
+    Result := TTuiClusterPool.WidthOf(ClusterId)
+  else if TTuiUnicode.CodePointWidth(Ord(Character)) = 2 then
+    Result := 2
+  else
+    Result := 1;
 end;
 
 class operator TTuiCell.Equal(const A, B: TTuiCell): Boolean;
 begin
-  Result := (A.Character = B.Character) and (A.Style = B.Style);
+  Result := (A.Character = B.Character) and (A.ClusterId = B.ClusterId) and
+    (A.Style = B.Style);
 end;
 
 class operator TTuiCell.NotEqual(const A, B: TTuiCell): Boolean;
@@ -211,5 +377,8 @@ begin
     );
   end;
 end;
+
+finalization
+  TTuiClusterPool.Shutdown;
 
 end.

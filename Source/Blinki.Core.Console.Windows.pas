@@ -38,11 +38,13 @@ interface
 {$IFDEF MSWINDOWS}
 
 uses
+  System.SysUtils,
   System.Types,
   Winapi.Windows,
   Blinki.Core.Console,
   Blinki.Core.Event,
-  Blinki.Core.Input;
+  Blinki.Core.Input,
+  Blinki.Core.Unicode;
 
 type
   // Explicit layout to avoid incompatibilities across Delphi versions.
@@ -97,6 +99,9 @@ type
   strict private
     // Tracks the previous raw button state for press/release transition detection.
     FLastButtonState: DWORD;
+    // High surrogate waiting for its low half: the console delivers a
+    // supplementary-plane character (emoji) as two consecutive key events.
+    FPendingHighSurrogate: Char;
     FOriginalOutMode: DWORD;
     FOriginalInMode: DWORD;
     FOriginalOutputCodePage: UINT;
@@ -222,6 +227,20 @@ begin
   SetConsoleOutputCP(CP_UTF8);
   SetConsoleCP(CP_UTF8);
 
+  // Detect the emoji capability of the host: Windows Terminal (WT_SESSION)
+  // and a few known emulators merge emoji grapheme clusters into one glyph;
+  // legacy conhost draws the parts separately, so widths must be measured
+  // as the sum of the parts. Applications can override TTuiUnicode.EmojiLevel
+  // after Open when the heuristic is wrong.
+  var LTermProgram := GetEnvironmentVariable('TERM_PROGRAM');
+  if (GetEnvironmentVariable('WT_SESSION') <> '') or
+     SameText(LTermProgram, 'WezTerm') or
+     SameText(LTermProgram, 'iTerm.app') or
+     SameText(LTermProgram, 'ghostty') then
+    TTuiUnicode.EmojiLevel := elFull
+  else
+    TTuiUnicode.EmojiLevel := elBasic;
+
   // Install the Ctrl+C handler for guaranteed cleanup
   GCtrlCBackend := Self;
   SetConsoleCtrlHandler(@CtrlCHandler, True);
@@ -331,7 +350,30 @@ begin
         #0, LModifiers);
   else
     if ARec.KeyEvent.UnicodeChar <> #0 then
-      AKey := TTuiKeyEvent.Make(kcChar, ARec.KeyEvent.UnicodeChar, LModifiers)
+    begin
+      var LChar := ARec.KeyEvent.UnicodeChar;
+      if TTuiUnicode.IsHighSurrogate(LChar) then
+      begin
+        // First half of a supplementary-plane character: stash it and keep
+        // draining until the matching low surrogate arrives.
+        FPendingHighSurrogate := LChar;
+        Exit;
+      end;
+      if TTuiUnicode.IsLowSurrogate(LChar) then
+      begin
+        if FPendingHighSurrogate = #0 then
+          Exit; // orphan low surrogate: drop it
+        AKey := TTuiKeyEvent.MakeCodePoint(kcChar,
+          TTuiUnicode.CombineSurrogates(FPendingHighSurrogate, LChar), LModifiers);
+        FPendingHighSurrogate := #0;
+      end
+      else
+      begin
+        // A BMP character invalidates any stashed half (orphan high surrogate).
+        FPendingHighSurrogate := #0;
+        AKey := TTuiKeyEvent.Make(kcChar, LChar, LModifiers);
+      end;
+    end
     else
       Exit; // unmapped key (e.g. standalone modifier key)
   end;
