@@ -75,12 +75,11 @@ type
     FBuffer: TBytes;
     FCount: Integer;
     FEvents: TQueue<TTuiEvent>;
-    FNeedMore: Boolean;
-    procedure Discard(ACount: Integer);
     class function DecodeModifiers(AParam: Integer): TTuiKeyModifiers; static;
-    class function KeyFromTilde(AParam: Integer; AModifiers: TTuiKeyModifiers;
-      out AEvent: TTuiEvent): Boolean; static;
+    procedure Discard(ACount: Integer);
     class function KeyFromLetter(AFinal: Byte; AModifiers: TTuiKeyModifiers;
+      out AEvent: TTuiEvent): Boolean; static;
+    class function KeyFromTilde(AParam: Integer; AModifiers: TTuiKeyModifiers;
       out AEvent: TTuiEvent): Boolean; static;
     class procedure ParseCsi(const ABuffer: TBytes; ACount: Integer;
       out AConsumed: Integer; out AEvent: TTuiEvent; out AHasEvent: Boolean;
@@ -195,13 +194,14 @@ end;
 
 function TTuiSequenceDecoder.HasPendingPrefix: Boolean;
 begin
-  Result := FNeedMore and (FCount > 0);
+  // Pump runs after every PutBytes and drains everything parseable, so any
+  // leftover bytes are by construction a stalled incomplete prefix.
+  Result := FCount > 0;
 end;
 
 procedure TTuiSequenceDecoder.Reset;
 begin
   FCount := 0;
-  FNeedMore := False;
   FEvents.Clear;
 end;
 
@@ -209,28 +209,25 @@ procedure TTuiSequenceDecoder.FlushPending;
 begin
   // Resolve whatever incomplete prefix is stalled at the buffer head. Each
   // iteration either consumes bytes or empties the buffer, so it terminates.
+  Pump; // ensure everything parseable is parsed before resolving the tail
   while FCount > 0 do
   begin
-    Pump;
-    if not FNeedMore then
-      Break;
     if FBuffer[0] = BEsc then
     begin
       // A lone ESC that never grew into a sequence IS the Escape key; the
       // bytes after it (if any) re-parse as ordinary input.
       FEvents.Enqueue(TTuiEvent.MakeKey(TTuiKeyEvent.Make(kcEscape, #0, [])));
       Discard(1);
+      Pump;
     end
     else
       // A truncated UTF-8 fragment with no continuation coming: drop it.
       FCount := 0;
   end;
-  FNeedMore := False;
 end;
 
 procedure TTuiSequenceDecoder.Pump;
 begin
-  FNeedMore := False;
   while FCount > 0 do
   begin
     var LConsumed: Integer;
@@ -238,10 +235,7 @@ begin
     var LHasEvent, LNeedMore: Boolean;
     ParseOne(FBuffer, FCount, LConsumed, LEvent, LHasEvent, LNeedMore);
     if LNeedMore then
-    begin
-      FNeedMore := True;
-      Break;
-    end;
+      Break; // incomplete prefix at the head: wait for more bytes
     if LConsumed <= 0 then
       LConsumed := 1; // defensive: always make progress
     if LHasEvent then
@@ -337,10 +331,16 @@ begin
 
   if (LB and 64) <> 0 then
   begin
-    // Wheel: 64 = up, 65 = down
-    var LDelta := 1;
-    if (LB and 1) <> 0 then
-      LDelta := -1;
+    // Vertical wheel only: 64 = up, 65 = down. 66/67 are horizontal wheel
+    // events, which no widget consumes: reporting them as vertical would
+    // scroll lists during horizontal touchpad gestures.
+    var LDelta: Integer;
+    case LB and 3 of
+      0: LDelta := 1;
+      1: LDelta := -1;
+    else
+      Exit;
+    end;
     AEvent := TTuiEvent.MakeMouse(
       TTuiMouseEvent.Make(LX, LY, mbNone, mekWheel, LDelta, LModifiers));
     AHasEvent := True;
@@ -433,15 +433,21 @@ begin
   var LParamCount := 0;
   var LCurrent := 0;
   var LHasDigits := False;
+  var LInSubparam := False;
   while (LIndex < ACount) and (ABuffer[LIndex] >= $30) and (ABuffer[LIndex] <= $3F) do
   begin
     var LByte := ABuffer[LIndex];
     if (LByte >= Ord('0')) and (LByte <= Ord('9')) then
     begin
-      LCurrent := LCurrent * 10 + (LByte - Ord('0'));
-      if LCurrent > 65535 then
-        LCurrent := 65535; // clamp: params are small; avoid overflow on garbage
-      LHasDigits := True;
+      // Digits after a ':' belong to a subparameter (kitty protocol, event
+      // types): keep only the primary value, never concatenate across ':'.
+      if not LInSubparam then
+      begin
+        LCurrent := LCurrent * 10 + (LByte - Ord('0'));
+        if LCurrent > 65535 then
+          LCurrent := 65535; // clamp: params are small; avoid overflow on garbage
+        LHasDigits := True;
+      end;
     end
     else if LByte = Ord(';') then
     begin
@@ -452,8 +458,11 @@ begin
       end;
       LCurrent := 0;
       LHasDigits := False;
-    end;
-    // Other parameter bytes (':', '<', '=', '>', '?') are skipped
+      LInSubparam := False;
+    end
+    else if LByte = Ord(':') then
+      LInSubparam := True;
+    // Other parameter bytes ('<', '=', '>', '?') are skipped
     Inc(LIndex);
   end;
   if LHasDigits and (LParamCount <= High(LParams)) then
@@ -473,9 +482,17 @@ begin
   end;
 
   var LFinal := ABuffer[LIndex];
-  AConsumed := LIndex + 1;
   if (LFinal < $40) or (LFinal > $7E) then
-    Exit; // malformed: swallow up to and including the offending byte
+  begin
+    // Malformed CSI: swallow it, but never eat an ESC — it starts the NEXT
+    // sequence (VT parsers abort on ESC without consuming it).
+    if LFinal = BEsc then
+      AConsumed := LIndex
+    else
+      AConsumed := LIndex + 1;
+    Exit;
+  end;
+  AConsumed := LIndex + 1;
 
   if LIsSgrMouse then
   begin
@@ -654,7 +671,9 @@ begin
         AHasEvent := True;
         AConsumed := 2;
       end;
-    $21..$7E:
+    // Printable ASCII except 'O' ($4F) and '[' ($5B), which are the SS3/CSI
+    // introducers handled above: Pascal case labels must not overlap.
+    $21..$4E, $50..$5A, $5C..$7E:
       begin
         // Meta/Alt prefix on a printable ASCII key
         AEvent := TTuiEvent.MakeKey(

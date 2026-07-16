@@ -241,6 +241,16 @@ type
     class procedure ApplyDetectedEmojiLevel(ALevel: TTuiEmojiLevel); static;
 
     /// <summary>
+    ///   Heuristic detection of the host terminal's emoji capability from
+    ///   environment variables. Shared by all console backends so the
+    ///   terminal list cannot drift between platforms. Unknown terminals map
+    ///   to elBasic (a false positive breaks column alignment, a false
+    ///   negative only degrades emoji sequences to their parts); terminal
+    ///   multiplexers force elBasic.
+    /// </summary>
+    class function DetectEmojiLevel: TTuiEmojiLevel; static;
+
+    /// <summary>
     ///   Emoji capability of the host terminal, detected by the console
     ///   backend during initialization and overridable by the application
     ///   at any time (an explicit assignment always wins over detection).
@@ -251,6 +261,9 @@ type
   end;
 
 implementation
+
+uses
+  System.SysUtils;
 
 type
 
@@ -779,6 +792,32 @@ class procedure TTuiUnicode.ApplyDetectedEmojiLevel(ALevel: TTuiEmojiLevel);
 begin
   if not FEmojiLevelExplicit then
     FEmojiLevel := ALevel;
+end;
+
+class function TTuiUnicode.DetectEmojiLevel: TTuiEmojiLevel;
+begin
+  Result := elBasic;
+  var LTerm := GetEnvironmentVariable('TERM');
+  var LTermProgram := GetEnvironmentVariable('TERM_PROGRAM');
+  if (GetEnvironmentVariable('WT_SESSION') <> '') or  // Windows Terminal / WSL
+     SameText(LTermProgram, 'WezTerm') or
+     SameText(LTermProgram, 'iTerm.app') or
+     SameText(LTermProgram, 'ghostty') or
+     SameText(LTermProgram, 'contour') or
+     SameText(LTermProgram, 'rio') or
+     SameText(LTerm, 'xterm-kitty') or
+     SameText(LTerm, 'xterm-ghostty') or
+     LTerm.StartsWith('foot') or
+     (GetEnvironmentVariable('KONSOLE_VERSION') <> '') or
+     (StrToIntDef(GetEnvironmentVariable('VTE_VERSION'), 0) >= 5000) then
+    Result := elFull;
+  // Terminal multiplexers do their own width math and merge clusters
+  // unreliably; Apple Terminal draws ZWJ members separately.
+  if (GetEnvironmentVariable('TMUX') <> '') or
+     LTerm.StartsWith('screen') or
+     LTerm.StartsWith('tmux') or
+     SameText(LTermProgram, 'Apple_Terminal') then
+    Result := elBasic;
 end;
 
 class procedure TTuiUnicode.SetEmojiLevel(AValue: TTuiEmojiLevel);

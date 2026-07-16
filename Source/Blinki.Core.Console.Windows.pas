@@ -227,17 +227,12 @@ begin
   SetConsoleOutputCP(CP_UTF8);
   SetConsoleCP(CP_UTF8);
 
-  // Detect the emoji capability of the host: Windows Terminal (WT_SESSION)
-  // and WezTerm (the one TERM_PROGRAM host with a Windows build) merge emoji
-  // grapheme clusters into one glyph; legacy conhost draws the parts
-  // separately, so widths must be measured as the sum of the parts. An
-  // explicit application assignment to TTuiUnicode.EmojiLevel always wins
-  // over this detection, whether it happens before or after Open.
-  if (GetEnvironmentVariable('WT_SESSION') <> '') or
-     SameText(GetEnvironmentVariable('TERM_PROGRAM'), 'WezTerm') then
-    TTuiUnicode.ApplyDetectedEmojiLevel(elFull)
-  else
-    TTuiUnicode.ApplyDetectedEmojiLevel(elBasic);
+  // Detect the emoji capability of the host terminal with the heuristic
+  // shared by all backends (Windows Terminal and WezTerm merge grapheme
+  // clusters; legacy conhost draws the parts separately). An explicit
+  // application assignment to TTuiUnicode.EmojiLevel always wins over this
+  // detection, whether it happens before or after Open.
+  TTuiUnicode.ApplyDetectedEmojiLevel(TTuiUnicode.DetectEmojiLevel);
 
   // Install the Ctrl+C handler for guaranteed cleanup
   GCtrlCBackend := Self;

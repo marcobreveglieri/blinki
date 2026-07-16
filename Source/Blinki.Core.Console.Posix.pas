@@ -45,6 +45,7 @@ interface
 {$IFNDEF MSWINDOWS}
 
 uses
+  System.SysUtils,
   System.Types,
   Blinki.Core.Console,
   Blinki.Core.Console.Sequences,
@@ -59,6 +60,26 @@ type
   ///   POSIX implementation of ITuiConsoleBackend built on termios raw mode,
   ///   poll(2)-based non-blocking input and an escape-sequence decoder.
   /// </summary>
+  /// <summary>
+  ///   Result of a bounded wait on stdin: distinguishing a real timeout from
+  ///   an interrupted poll matters because only a genuine quiet period may
+  ///   resolve a pending lone ESC into the Escape key.
+  /// </summary>
+  TTuiWaitResult = (
+    /// <summary>
+    ///   The full wait elapsed with no input.
+    /// </summary>
+    twrTimeout,
+    /// <summary>
+    ///   Input (or EOF) is available for reading.
+    /// </summary>
+    twrReadable,
+    /// <summary>
+    ///   The wait was interrupted early (EINTR) or failed transiently.
+    /// </summary>
+    twrInterrupted
+  );
+
   TTuiPosixConsoleBackend = class(TInterfacedObject, ITuiConsoleBackend)
   strict private
     FDecoder: TTuiSequenceDecoder;
@@ -66,19 +87,25 @@ type
     FOutBuffer: TBytes;
     FOutCount: Integer;
     FStdinEof: Boolean;
-    procedure DetectEmojiLevel;
     function  ReadPendingBytes: Boolean;
-    function  WaitForInput(ATimeoutMs: Integer): Boolean;
+    function  WaitForInput(ATimeoutMs: Integer): TTuiWaitResult;
   public
     constructor Create;
     /// <inheritdoc/>
     destructor Destroy; override;
+    /// <inheritdoc/>
     procedure Open;
+    /// <inheritdoc/>
     procedure Close;
+    /// <inheritdoc/>
     procedure Flush;
+    /// <inheritdoc/>
     function GetSize: TSize;
+    /// <inheritdoc/>
     function TryReadEvent(ATimeoutMs: Integer; out AEvent: TTuiEvent): Boolean;
+    /// <inheritdoc/>
     function TryReadKey(ATimeoutMs: Integer; out AKey: TTuiKeyEvent): Boolean;
+    /// <inheritdoc/>
     procedure Write(const AText: string);
   end;
 
@@ -88,12 +115,20 @@ implementation
 
 {$IFNDEF MSWINDOWS}
 
+// This backend targets Linux only: the BLINKI_* ioctl/signal constants below
+// are Linux values and must be ported before enabling other POSIX platforms
+// (e.g. TIOCGWINSZ is $40087468 on macOS/BSD). Fail loudly instead of
+// compiling a silently broken backend.
+{$IFNDEF LINUX}
+  {$MESSAGE Error 'TTuiPosixConsoleBackend supports Linux only (port the BLINKI_* constants first)'}
+{$ENDIF}
+
 uses
   System.Diagnostics,
-  System.SysUtils,
   Posix.Base,
   Posix.Termios,
   Posix.Unistd,
+  Blinki.Core.Ansi,
   Blinki.Core.Unicode;
 
 const
@@ -101,6 +136,7 @@ const
   // avoid depending on RTL declarations that drifted between releases.
   BLINKI_TIOCGWINSZ = $5413;  // TIOCGWINSZ, asm-generic/ioctls.h (Linux)
   BLINKI_POLLIN     = $0001;  // POLLIN, poll.h
+  BLINKI_POLLOUT    = $0004;  // POLLOUT, poll.h
   BLINKI_SIGINT     = 2;      // SIGINT, signal.h
   BLINKI_SIGTERM    = 15;     // SIGTERM, signal.h
 
@@ -136,21 +172,18 @@ function tui_kill(APid: Integer; ASigNum: Integer): Integer;
 function tui_getpid: Integer;
   cdecl; external libc name 'getpid';
 
-const
-  // Emergency terminal restore, pre-encoded so the signal handler needs no
-  // heap or string conversions (async-signal-safe):
-  // ESC[?1000;1006l (mouse off)  ESC[?1049l (leave alt buffer)
-  // ESC[?25h (show cursor)  ESC[0m (SGR reset)
-  GRestoreSequence: array[0..30] of Byte = (
-    $1B, $5B, $3F, $31, $30, $30, $30, $3B, $31, $30, $30, $36, $6C,
-    $1B, $5B, $3F, $31, $30, $34, $39, $6C,
-    $1B, $5B, $3F, $32, $35, $68,
-    $1B, $5B, $30, $6D
-  );
-
 var
+  // Emergency terminal restore, encoded once at unit initialization from the
+  // TTuiAnsi single source of truth (mouse off, leave the alternate buffer,
+  // show the cursor, SGR reset). The signal handler only reads these bytes,
+  // so it stays async-signal-safe.
+  GRestoreBytes: TBytes;
+
   // State shared with the signal handler. Written only while installing the
   // handler (single-threaded event loop), read from the handler context.
+  // GBackendOwner is a weak reference to the instance that owns the saved
+  // terminal state, like GCtrlCBackend in the Windows backend.
+  GBackendOwner: TTuiPosixConsoleBackend = nil;
   GOriginalTermios: termios;
   GTermiosSaved: Boolean;
   GOldSigInt: TTuiSignalHandler;
@@ -162,7 +195,8 @@ begin
   // The App's try/finally teardown never runs when a signal kills the
   // process, so the terminal is restored right here, then the signal is
   // re-raised with its default disposition (die by signal, Windows parity).
-  __write(STDOUT_FILENO, @GRestoreSequence[0], Length(GRestoreSequence));
+  if Length(GRestoreBytes) > 0 then
+    __write(STDOUT_FILENO, @GRestoreBytes[0], Length(GRestoreBytes));
   if GTermiosSaved then
     tcsetattr(STDIN_FILENO, TCSAFLUSH, GOriginalTermios);
   tui_signal(ASigNum, nil); // nil = SIG_DFL on Linux
@@ -190,6 +224,14 @@ begin
   if FOpened then
     Exit;
 
+  // The saved termios and signal dispositions are process-wide state: a
+  // second concurrently open backend would capture the already-raw settings
+  // as "original" and every restore path would then re-enter raw mode,
+  // leaving the user's shell without echo. Fail fast instead.
+  if GBackendOwner <> nil then
+    raise ETuiConsoleError.Create('Another console backend is already open: ' +
+      'the terminal state can be owned by one backend at a time.');
+
   if (isatty(STDIN_FILENO) = 0) or (isatty(STDOUT_FILENO) = 0) then
     raise ETuiConsoleError.Create('Blinki requires an interactive terminal: ' +
       'stdin/stdout must be a tty, not a redirected file or pipe.');
@@ -210,13 +252,16 @@ begin
   if tcsetattr(STDIN_FILENO, TCSAFLUSH, LRaw) <> 0 then
     raise ETuiConsoleError.Create('Unable to switch the terminal to raw mode.');
 
+  GBackendOwner := Self;
   GOldSigInt := tui_signal(BLINKI_SIGINT, TuiPosixSignalHandler);
   GOldSigTerm := tui_signal(BLINKI_SIGTERM, TuiPosixSignalHandler);
 
-  DetectEmojiLevel;
+  // Emoji capability heuristic shared by all backends; an explicit
+  // application assignment to TTuiUnicode.EmojiLevel always wins.
+  TTuiUnicode.ApplyDetectedEmojiLevel(TTuiUnicode.DetectEmojiLevel);
 
   // SGR mouse reporting: button presses/releases with unambiguous coordinates
-  Write(#$1B'[?1000;1006h');
+  Write(TTuiAnsi.MouseTrackingOn);
   Flush;
 
   FOpened := True;
@@ -230,53 +275,26 @@ begin
 
   // Disable mouse reporting
   try
-    Write(#$1B'[?1000;1006l');
+    Write(TTuiAnsi.MouseTrackingOff);
     Flush;
   except
     // Ignore: in cleanup, do not propagate exceptions
   end;
 
-  // Restore original terminal attributes
-  try
-    if GTermiosSaved then
-      tcsetattr(STDIN_FILENO, TCSAFLUSH, GOriginalTermios);
-  except
-    // Ignore: in cleanup, do not propagate exceptions
+  // Restore terminal attributes and signal dispositions, but only when this
+  // instance owns the saved process-wide state.
+  if GBackendOwner = Self then
+  begin
+    try
+      if GTermiosSaved then
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, GOriginalTermios);
+    except
+      // Ignore: in cleanup, do not propagate exceptions
+    end;
+    tui_signal(BLINKI_SIGINT, GOldSigInt);
+    tui_signal(BLINKI_SIGTERM, GOldSigTerm);
+    GBackendOwner := nil;
   end;
-
-  // Restore previous signal dispositions
-  tui_signal(BLINKI_SIGINT, GOldSigInt);
-  tui_signal(BLINKI_SIGTERM, GOldSigTerm);
-end;
-
-procedure TTuiPosixConsoleBackend.DetectEmojiLevel;
-begin
-  // Conservative policy: a false positive breaks column alignment (layout
-  // corruption), a false negative only renders emoji sequences as their
-  // parts. An explicit application assignment always wins over this.
-  var LLevel := elBasic;
-  var LTerm := GetEnvironmentVariable('TERM');
-  var LTermProgram := GetEnvironmentVariable('TERM_PROGRAM');
-  if (GetEnvironmentVariable('WT_SESSION') <> '') or   // WSL under Windows Terminal
-     SameText(LTermProgram, 'WezTerm') or
-     SameText(LTermProgram, 'iTerm.app') or
-     SameText(LTermProgram, 'ghostty') or
-     SameText(LTermProgram, 'contour') or
-     SameText(LTermProgram, 'rio') or
-     SameText(LTerm, 'xterm-kitty') or
-     SameText(LTerm, 'xterm-ghostty') or
-     LTerm.StartsWith('foot') or
-     (GetEnvironmentVariable('KONSOLE_VERSION') <> '') or
-     (StrToIntDef(GetEnvironmentVariable('VTE_VERSION'), 0) >= 5000) then
-    LLevel := elFull;
-  // Terminal multiplexers do their own width math and merge clusters
-  // unreliably; Apple Terminal draws ZWJ members separately.
-  if (GetEnvironmentVariable('TMUX') <> '') or
-     LTerm.StartsWith('screen') or
-     LTerm.StartsWith('tmux') or
-     SameText(LTermProgram, 'Apple_Terminal') then
-    LLevel := elBasic;
-  TTuiUnicode.ApplyDetectedEmojiLevel(LLevel);
 end;
 
 function TTuiPosixConsoleBackend.GetSize: TSize;
@@ -295,22 +313,23 @@ begin
   end;
 end;
 
-function TTuiPosixConsoleBackend.WaitForInput(ATimeoutMs: Integer): Boolean;
+function TTuiPosixConsoleBackend.WaitForInput(ATimeoutMs: Integer): TTuiWaitResult;
 begin
   var LFd: TTuiPollFd;
   LFd.fd := STDIN_FILENO;
   LFd.events := BLINKI_POLLIN;
   LFd.revents := 0;
   var LReady := tui_poll(@LFd, 1, ATimeoutMs);
-  if LReady <= 0 then
-    Exit(False); // timeout, or EINTR/error treated as "no data this round"
-  if (LFd.revents and BLINKI_POLLIN) = 0 then
-  begin
-    // POLLHUP/POLLERR without data: stdin is gone
-    FStdinEof := True;
-    Exit(False);
-  end;
-  Result := True;
+  if LReady > 0 then
+    // POLLIN, or POLLHUP/POLLERR: read(2) resolves either case (EOF sets
+    // FStdinEof in ReadPendingBytes, so a closed stdin never poll-spins).
+    Exit(twrReadable);
+  if LReady = 0 then
+    Exit(twrTimeout);
+  // EINTR or transient error: NOT a timeout — the caller must not resolve a
+  // pending lone ESC on this result, or a signal landing between the ESC and
+  // the rest of an arrow-key burst would fabricate an Escape keypress.
+  Result := twrInterrupted;
 end;
 
 function TTuiPosixConsoleBackend.ReadPendingBytes: Boolean;
@@ -332,10 +351,16 @@ function TTuiPosixConsoleBackend.TryReadEvent(ATimeoutMs: Integer;
 begin
   Result := False;
   AEvent := TTuiEvent.None;
-  if not FOpened then
-    Exit;
   if ATimeoutMs < 0 then
     ATimeoutMs := 0;
+  if not FOpened then
+  begin
+    // Closed backend: honor the pacing timeout (several callers use this
+    // call as their tick sleep) instead of busy-returning.
+    if ATimeoutMs > 0 then
+      tui_poll(nil, 0, ATimeoutMs);
+    Exit;
+  end;
 
   var LWatch := TStopwatch.StartNew;
   repeat
@@ -343,6 +368,8 @@ begin
       Exit(True);
 
     var LRemaining := ATimeoutMs - Integer(LWatch.ElapsedMilliseconds);
+    if LRemaining < 0 then
+      LRemaining := 0;
 
     if FStdinEof then
     begin
@@ -356,33 +383,38 @@ begin
       Exit;
     end;
 
-    var LWait: Integer;
-    if FDecoder.HasPendingPrefix then
-    begin
-      // A lone ESC (or partial sequence) is pending: wait briefly for the
-      // rest of the burst, then resolve it as a real Escape key.
-      if LRemaining <= 0 then
-      begin
-        FDecoder.FlushPending;
-        if FDecoder.TryGetEvent(AEvent) then
-          Exit(True);
-        Exit;
-      end;
+    // A lone ESC (or partial sequence) pending: wait only a short grace
+    // period for the rest of the burst. With no budget left, LWait = 0 still
+    // performs one non-blocking check so a 0 timeout drains pending input
+    // exactly like the Windows backend does.
+    var LWait := LRemaining;
+    if FDecoder.HasPendingPrefix and
+       (LWait > TTuiSequenceDecoder.DefaultEscTimeoutMs) then
       LWait := TTuiSequenceDecoder.DefaultEscTimeoutMs;
-      if LRemaining < LWait then
-        LWait := LRemaining;
-    end
-    else
-    begin
-      if LRemaining <= 0 then
-        Exit;
-      LWait := LRemaining;
-    end;
 
-    if WaitForInput(LWait) then
-      ReadPendingBytes
-    else if FDecoder.HasPendingPrefix then
-      FDecoder.FlushPending;
+    case WaitForInput(LWait) of
+      twrReadable:
+        ReadPendingBytes;
+      twrTimeout:
+        begin
+          if FDecoder.HasPendingPrefix then
+          begin
+            // A genuine quiet period elapsed: the pending ESC is a real
+            // Escape keypress (or a truncated fragment to drop).
+            FDecoder.FlushPending;
+            if LWait < LRemaining then
+              Continue; // budget remains: pick up the resolved event
+            if FDecoder.TryGetEvent(AEvent) then
+              Exit(True);
+          end;
+          Exit; // the full remaining budget elapsed
+        end;
+      twrInterrupted:
+        // EINTR: recompute the remaining budget and retry; never resolve a
+        // pending prefix here (it was not a real quiet period).
+        if LRemaining <= 0 then
+          Exit;
+    end;
   until False;
 end;
 
@@ -425,7 +457,7 @@ end;
 procedure TTuiPosixConsoleBackend.Flush;
 begin
   // Drain the whole frame in as few write(2) calls as possible, resisting
-  // partial writes and transient EINTR without ever hanging.
+  // partial writes, EINTR and EAGAIN without ever hanging or hot-spinning.
   var LOffset := 0;
   var LStall := 0;
   while LOffset < FOutCount do
@@ -441,11 +473,25 @@ begin
     begin
       Inc(LStall);
       if LStall > 100 then
-        Break; // the terminal is gone: dropping the frame beats hanging
+        Break; // ~1s of stalls: the terminal is gone, dropping beats hanging
+      // EAGAIN (tty buffer full, e.g. stdout inherited with O_NONBLOCK) or
+      // EINTR: wait briefly for writability instead of spinning hot.
+      var LFd: TTuiPollFd;
+      LFd.fd := STDOUT_FILENO;
+      LFd.events := BLINKI_POLLOUT;
+      LFd.revents := 0;
+      tui_poll(@LFd, 1, 10);
     end;
   end;
   FOutCount := 0;
 end;
+
+initialization
+  // Pre-encode the emergency restore sequence from the TTuiAnsi single
+  // source of truth, long before any signal handler can run.
+  GRestoreBytes := TEncoding.UTF8.GetBytes(
+    TTuiAnsi.MouseTrackingOff + TTuiAnsi.AlternateBufferOff +
+    TTuiAnsi.CursorShow + TTuiAnsi.Reset);
 
 {$ENDIF}
 

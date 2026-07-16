@@ -36,6 +36,7 @@ unit Blinki.UnitTests.Core.Sequences;
 interface
 
 uses
+  System.SysUtils,
   DUnitX.TestFramework,
   Blinki.Core.Console.Sequences,
   Blinki.Core.Event,
@@ -52,11 +53,11 @@ type
   TSequenceDecoderTests = class
   strict private
     FDecoder: TTuiSequenceDecoder;
+    procedure AssertNoEvent(const AMessage: string);
     procedure Feed(const ABytes: array of Byte);
     procedure FeedText(const AText: RawByteString);
     function  NextKey: TTuiKeyEvent;
     function  NextMouse: TTuiMouseEvent;
-    procedure AssertNoEvent(const AMessage: string);
   public
     /// <summary>
     ///   Creates a fresh decoder for each test.
@@ -158,10 +159,8 @@ end;
 
 procedure TSequenceDecoderTests.FeedText(const AText: RawByteString);
 begin
-  var LBytes: TArray<Byte>;
-  SetLength(LBytes, Length(AText));
-  for var LIndex := 1 to Length(AText) do
-    LBytes[LIndex - 1] := Ord(AText[LIndex]);
+  // BytesOf(RawByteString) preserves bytes verbatim (no codepage conversion)
+  var LBytes := BytesOf(AText);
   FDecoder.PutBytes(LBytes, Length(LBytes));
 end;
 
@@ -276,6 +275,14 @@ begin
   LKey := NextKey;
   Assert.AreEqual(Ord(kcDelete), Ord(LKey.Code));
   Assert.IsTrue(LKey.Modifiers = [kmCtrl]);
+
+  // Kitty-style ':' subparameters must not concatenate into the modifier
+  // value: ESC[1;5:3A is Ctrl+Up (event type 3), not modifier 53.
+  FeedText(#$1B'[1;5:3A');
+  LKey := NextKey;
+  Assert.AreEqual(Ord(kcUp), Ord(LKey.Code));
+  Assert.IsTrue(LKey.Modifiers = [kmCtrl],
+    'Subparameter digits must not merge into the modifier');
 
   AssertNoEvent('No extra events');
 end;
@@ -472,6 +479,12 @@ begin
   FeedText(#$1B'[<65;2;2M');
   Assert.AreEqual(-1, NextMouse.WheelDelta);
 
+  // Horizontal wheel (66 = left, 67 = right): no widget consumes it, and
+  // reporting it as vertical would scroll during horizontal gestures
+  FeedText(#$1B'[<66;2;2M');
+  FeedText(#$1B'[<67;2;2M');
+  AssertNoEvent('Horizontal wheel must be ignored');
+
   // Motion report (bit 32): dropped
   FeedText(#$1B'[<32;4;4M');
   AssertNoEvent('Motion reports must be dropped');
@@ -497,6 +510,12 @@ begin
   // A key right after garbage still decodes
   FeedText(#$1B'[?9999x'#$1B'[A');
   Assert.AreEqual(Ord(kcUp), Ord(NextKey.Code));
+
+  // A CSI aborted by the next ESC must not eat that ESC: the truncated
+  // 'ESC[1' is swallowed, the following ESC[A still decodes as Up.
+  FeedText(#$1B'[1'#$1B'[A');
+  Assert.AreEqual(Ord(kcUp), Ord(NextKey.Code),
+    'The aborting ESC starts the next sequence');
   AssertNoEvent('No extra events');
 end;
 

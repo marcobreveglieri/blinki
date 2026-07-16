@@ -240,6 +240,19 @@ type
     /// </summary>
     class function SetTitle(const ATitle: string): string; static;
     {$ENDREGION}
+    {$REGION 'Mouse reporting'}
+    /// <summary>
+    ///   Enables terminal mouse reporting: button presses and releases
+    ///   (mode 1000) with SGR extended coordinates (mode 1006). Used by the
+    ///   POSIX backend; pair with MouseTrackingOff on shutdown.
+    /// </summary>
+    class function MouseTrackingOn: string; static;
+
+    /// <summary>
+    ///   Disables the mouse reporting modes enabled by MouseTrackingOn.
+    /// </summary>
+    class function MouseTrackingOff: string; static;
+    {$ENDREGION}
     {$REGION 'Utilities'}
     /// <summary>
     ///   True for single UTF-16 code units that occupy 2 terminal columns
@@ -487,6 +500,16 @@ end;
 class function TTuiAnsi.SetTitle(const ATitle: string): string;
 begin
   Result := OSC + '0;' + ATitle + BEL;
+end;
+
+class function TTuiAnsi.MouseTrackingOn: string;
+begin
+  Result := CSI + '?1000;1006h';
+end;
+
+class function TTuiAnsi.MouseTrackingOff: string;
+begin
+  Result := CSI + '?1000;1006l';
 end;
 
 class function TTuiAnsi.IsWideChar(ACh: Char): Boolean;

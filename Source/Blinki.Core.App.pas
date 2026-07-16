@@ -359,6 +359,10 @@ begin
   FBackend.Write(TTuiAnsi.AlternateBufferOn);
   FBackend.Write(TTuiAnsi.CursorHide);
   FBackend.Write(TTuiAnsi.ClearScreen);
+  // Buffering backends (POSIX) only reach the terminal on Flush: without it
+  // the screen switch would be deferred to the first rendered frame, showing
+  // a flash of the previous shell content.
+  FBackend.Flush;
 end;
 
 procedure TTuiApp.TeardownTerminal;
@@ -366,6 +370,7 @@ begin
   FBackend.Write(TTuiAnsi.CursorShow);
   FBackend.Write(TTuiAnsi.AlternateBufferOff);
   FBackend.Write(TTuiAnsi.Reset);
+  FBackend.Flush;
   FBackend.Close;
 end;
 
