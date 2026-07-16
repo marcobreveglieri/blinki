@@ -97,6 +97,8 @@ type
   TTuiUnicode = record
   strict private
     class var FEmojiLevel: TTuiEmojiLevel;
+    class var FEmojiLevelExplicit: Boolean;
+    class procedure SetEmojiLevel(AValue: TTuiEmojiLevel); static;
   public
     {$REGION 'Code point iteration'}
     /// <summary>
@@ -193,6 +195,15 @@ type
     ///   AIndex is at or before the first cluster.
     /// </summary>
     class function PrevGraphemeBoundary(const AText: string; AIndex: Integer): Integer; static;
+
+    /// <summary>
+    ///   Returns the largest cluster boundary at or before AIndex (1-based):
+    ///   AIndex itself when it already lies on a boundary, otherwise the
+    ///   start of the cluster containing it. The result is always in
+    ///   [1, Length(AText) + 1]. Used by editing widgets to keep the cursor
+    ///   from landing inside an emoji sequence.
+    /// </summary>
+    class function SnapToClusterStart(const AText: string; AIndex: Integer): Integer; static;
     {$ENDREGION}
     {$REGION 'Column width'}
     /// <summary>
@@ -222,11 +233,20 @@ type
     {$ENDREGION}
     {$REGION 'Terminal capability'}
     /// <summary>
-    ///   Emoji capability of the host terminal, set by the console backend
-    ///   during initialization and overridable by the application. Defaults
-    ///   to elFull until a backend downgrades it.
+    ///   Applies a backend-detected emoji level unless the application has
+    ///   already chosen one explicitly through the EmojiLevel property.
+    ///   Console backends call this from Open so an application preset is
+    ///   never silently overwritten.
     /// </summary>
-    class property EmojiLevel: TTuiEmojiLevel read FEmojiLevel write FEmojiLevel;
+    class procedure ApplyDetectedEmojiLevel(ALevel: TTuiEmojiLevel); static;
+
+    /// <summary>
+    ///   Emoji capability of the host terminal, detected by the console
+    ///   backend during initialization and overridable by the application
+    ///   at any time (an explicit assignment always wins over detection).
+    ///   Defaults to elFull until a backend downgrades it.
+    /// </summary>
+    class property EmojiLevel: TTuiEmojiLevel read FEmojiLevel write SetEmojiLevel;
     {$ENDREGION}
   end;
 
@@ -244,9 +264,12 @@ type
 
 const
   // --- East Asian Wide / Fullwidth (EAW = W or F), Unicode 16.0 -------------
-  // Source: EastAsianWidth.txt. Emoji-presentation ranges that are also EAW=W
-  // (e.g. $231A..$231B, $1F300..) live in EmojiPresentationRanges below and
-  // are picked up by CodePointWidth through IsEmojiPresentation.
+  // Source: EastAsianWidth.txt. Most emoji-presentation ranges that are also
+  // EAW=W (e.g. $231A..$231B, $1F300..) live only in EmojiPresentationRanges
+  // below and are picked up by CodePointWidth through IsEmojiPresentation.
+  // The Enclosed Ideographic rows ($1F200..) are kept here as well because
+  // only part of that EAW=W block carries Emoji_Presentation: the two tables
+  // intentionally overlap there and CodePointWidth ORs them.
   WideRanges: array[0..24] of TTuiCodePointRange = (
     (Lo: $1100; Hi: $115F),    // Hangul Jamo
     (Lo: $2329; Hi: $232A),    // Angle brackets
@@ -572,6 +595,15 @@ begin
   if (AIndex < 1) or (AIndex > Length(AText)) then
     Exit(0);
 
+  // Fast path for the overwhelmingly common case: an ASCII/Latin-1 base
+  // ($20..$A8, below the first Extended_Pictographic entry) not followed by
+  // any possible extender (combining marks start at $0300; ZWJ and variation
+  // selectors are higher) is always a single-unit cluster.
+  var LFirstUnit := Ord(AText[AIndex]);
+  if (LFirstUnit >= $0020) and (LFirstUnit < $00A9) and
+     ((AIndex >= Length(AText)) or (Ord(AText[AIndex + 1]) < $0300)) then
+    Exit(1);
+
   var LIndex := AIndex;
   var LBase := NextCodePoint(AText, LIndex);
 
@@ -659,8 +691,29 @@ begin
   Result := LCurrent;
 end;
 
+class function TTuiUnicode.SnapToClusterStart(const AText: string;
+  AIndex: Integer): Integer;
+begin
+  if AIndex <= 1 then
+    Exit(1);
+  if AIndex > Length(AText) then
+    Exit(Length(AText) + 1);
+  var LBoundary := 1;
+  while LBoundary < AIndex do
+  begin
+    var LNext := NextGraphemeBoundary(AText, LBoundary);
+    if LNext > AIndex then
+      Break;
+    LBoundary := LNext;
+  end;
+  Result := LBoundary;
+end;
+
 class function TTuiUnicode.CodePointWidth(ACodePoint: TTuiCodePoint): Integer;
 begin
+  // Fast path: printable ASCII/Latin-1 below the first table entry ($A9).
+  if (ACodePoint >= $0020) and (ACodePoint < $00A9) then
+    Exit(1);
   // Zero-width: NUL, ZWJ, ZWSP..RLM, word joiner, BOM and grapheme extenders
   // except the emoji skin tone modifiers, which render as a 2-column swatch
   // when they appear alone.
@@ -683,6 +736,11 @@ begin
   if (ALen <= 0) or (AIndex < 1) or (AIndex > Length(AText)) then
     Exit(0);
 
+  // Fast path: a single-unit cluster has the width of its only code point
+  // under every emoji level.
+  if ALen = 1 then
+    Exit(CodePointWidth(Ord(AText[AIndex])));
+
   var LEnd := AIndex + ALen;
   if LEnd > Length(AText) + 1 then
     LEnd := Length(AText) + 1;
@@ -691,29 +749,23 @@ begin
   var LBase := NextCodePoint(AText, LIndex);
   var LBaseWidth := CodePointWidth(LBase);
   var LSumWidth := LBaseWidth;
-  var LHasVS15 := False;
-  var LHasVS16 := False;
-  var LHasZWJ := False;
+  var LIsEmojiSequence := False;
 
   while LIndex < LEnd do
   begin
     var LNext := NextCodePoint(AText, LIndex);
-    if IsVariationSelector15(LNext) then
-      LHasVS15 := True
-    else if IsVariationSelector16(LNext) then
-      LHasVS16 := True
-    else if IsZWJ(LNext) then
-      LHasZWJ := True;
+    if IsVariationSelector16(LNext) or IsZWJ(LNext) then
+      LIsEmojiSequence := True;
     Inc(LSumWidth, CodePointWidth(LNext));
   end;
 
   if FEmojiLevel = elFull then
   begin
     // A cluster-capable terminal draws the whole sequence as one glyph.
-    if LHasVS15 and not LHasZWJ then
-      Exit(LBaseWidth); // text presentation requested: EAW width of the base
-    if LHasVS16 or LHasZWJ or
-       (IsRegionalIndicator(LBase) and (ALen >= 4)) then
+    // VS16 and ZWJ force emoji presentation (2 columns); everything else
+    // (VS15, combining marks, regional indicator pairs whose base is
+    // already wide) keeps the width of the base code point.
+    if LIsEmojiSequence then
       Exit(2);
     Result := LBaseWidth;
   end
@@ -721,6 +773,18 @@ begin
     // elBasic/elNone: the terminal draws each part on its own; measure the
     // sum so layout matches the actual cursor advance.
     Result := LSumWidth;
+end;
+
+class procedure TTuiUnicode.ApplyDetectedEmojiLevel(ALevel: TTuiEmojiLevel);
+begin
+  if not FEmojiLevelExplicit then
+    FEmojiLevel := ALevel;
+end;
+
+class procedure TTuiUnicode.SetEmojiLevel(AValue: TTuiEmojiLevel);
+begin
+  FEmojiLevel := AValue;
+  FEmojiLevelExplicit := True;
 end;
 
 class function TTuiUnicode.StringWidth(const AText: string): Integer;
@@ -739,7 +803,8 @@ end;
 
 initialization
   // Optimistic default: modern terminals merge clusters. Console backends
-  // downgrade to elBasic when a legacy host is detected.
-  TTuiUnicode.EmojiLevel := elFull;
+  // downgrade to elBasic when a legacy host is detected; an explicit
+  // application assignment to EmojiLevel always wins over detection.
+  TTuiUnicode.ApplyDetectedEmojiLevel(elFull);
 
 end.

@@ -47,8 +47,14 @@ type
   [TestFixture]
   TUnicodeTests = class
   public
+    /// <summary>
+    ///   Pins the emoji level to elFull so width assertions are deterministic.
+    /// </summary>
     [Setup]
     procedure Setup;
+    /// <summary>
+    ///   Restores the emoji level changed by level-specific tests.
+    /// </summary>
     [TearDown]
     procedure TearDown;
 
@@ -118,6 +124,12 @@ type
     /// </summary>
     [Test]
     procedure GraphemeBoundaries_RoundTrip;
+    /// <summary>
+    ///   SnapToClusterStart keeps boundaries and snaps inside-cluster
+    ///   indexes back to the cluster start.
+    /// </summary>
+    [Test]
+    procedure SnapToClusterStart_Behaviour;
 
     /// <summary>
     ///   CodePointWidth: ASCII 1, CJK 2, emoji 2, ZWJ/VS 0, skin tone 2.
@@ -144,6 +156,11 @@ type
     /// </summary>
     [Test]
     procedure StringWidth_MixedContent;
+    /// <summary>
+    ///   A detected emoji level never overrides an explicit assignment.
+    /// </summary>
+    [Test]
+    procedure EmojiLevel_ExplicitAssignmentWinsOverDetection;
   end;
 
 implementation
@@ -276,6 +293,28 @@ begin
   Assert.AreEqual(1, TTuiUnicode.PrevGraphemeBoundary(LText, 2));
   Assert.AreEqual(2, TTuiUnicode.PrevGraphemeBoundary(LText, 5),
     'An index inside a cluster snaps to the cluster start');
+end;
+
+procedure TUnicodeTests.SnapToClusterStart_Behaviour;
+begin
+  var LText := 'ab' + Grinning; // emoji occupies units 3..4
+  Assert.AreEqual(1, TTuiUnicode.SnapToClusterStart(LText, 1));
+  Assert.AreEqual(3, TTuiUnicode.SnapToClusterStart(LText, 3),
+    'A boundary index stays put');
+  Assert.AreEqual(3, TTuiUnicode.SnapToClusterStart(LText, 4),
+    'An index between the surrogates snaps to the cluster start');
+  Assert.AreEqual(5, TTuiUnicode.SnapToClusterStart(LText, 5),
+    'End-of-string boundary is preserved');
+  Assert.AreEqual(5, TTuiUnicode.SnapToClusterStart(LText, 99),
+    'Out-of-range clamps to end of string');
+end;
+
+procedure TUnicodeTests.EmojiLevel_ExplicitAssignmentWinsOverDetection;
+begin
+  TTuiUnicode.EmojiLevel := elBasic; // explicit assignment
+  TTuiUnicode.ApplyDetectedEmojiLevel(elFull);
+  Assert.AreEqual(Ord(elBasic), Ord(TTuiUnicode.EmojiLevel),
+    'Detection must not override an explicit assignment');
 end;
 
 procedure TUnicodeTests.CodePointWidth_Basics;

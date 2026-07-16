@@ -34,11 +34,16 @@ uses
 
 const
   SampleRows: array[0..4] of string = (
-    'Simple:  |' + #$D83D#$DE00 + '|' + #$D83D#$DE80 + '|' + #$D83D#$DD25 + '|' + #$2B50 + '|',
-    'VS16:    |' + #$2600#$FE0F + '|' + #$2764#$FE0F + '|' + #$2699#$FE0F + '|' + #$26A0#$FE0F + '|',
-    'Flags:   |' + #$D83C#$DDEE#$D83C#$DDF9 + '|' + #$D83C#$DDE9#$D83C#$DDEA + '|' + #$D83C#$DDEB#$D83C#$DDF7 + '|',
-    'Tones:   |' + #$D83D#$DC4D + '|' + #$D83D#$DC4D#$D83C#$DFFB + '|' + #$D83D#$DC4D#$D83C#$DFFD + '|' + #$D83D#$DC4D#$D83C#$DFFF + '|',
-    'ZWJ:     |' + #$D83D#$DC68#$200D#$D83D#$DC69#$200D#$D83D#$DC67 + '|' + #$D83D#$DC69#$200D#$D83D#$DCBB + '|'
+    'Simple:  |' + #$D83D#$DE00 + '|' + #$D83D#$DE80 + '|' + #$D83D#$DD25 +
+      '|' + #$2B50 + '|',
+    'VS16:    |' + #$2600#$FE0F + '|' + #$2764#$FE0F + '|' + #$2699#$FE0F +
+      '|' + #$26A0#$FE0F + '|',
+    'Flags:   |' + #$D83C#$DDEE#$D83C#$DDF9 + '|' + #$D83C#$DDE9#$D83C#$DDEA +
+      '|' + #$D83C#$DDEB#$D83C#$DDF7 + '|',
+    'Tones:   |' + #$D83D#$DC4D + '|' + #$D83D#$DC4D#$D83C#$DFFB +
+      '|' + #$D83D#$DC4D#$D83C#$DFFD + '|' + #$D83D#$DC4D#$D83C#$DFFF + '|',
+    'ZWJ:     |' + #$D83D#$DC68#$200D#$D83D#$DC69#$200D#$D83D#$DC67 +
+      '|' + #$D83D#$DC69#$200D#$D83D#$DCBB + '|'
   );
 
   EmojiLevelNames: array[TTuiEmojiLevel] of string = ('None', 'Basic', 'Full');

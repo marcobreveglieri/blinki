@@ -72,6 +72,8 @@ type
   strict private
     class var FClusters: TList<string>;
     class var FIds: TDictionary<string, UInt32>;
+    class var FWidths: TList<Integer>;
+    class var FWidthsLevel: TTuiEmojiLevel;
   public
     /// <summary>
     ///   Returns the id of ACluster, adding it to the pool on first use.
@@ -79,18 +81,20 @@ type
     /// </summary>
     class function Intern(const ACluster: string): UInt32; static;
     /// <summary>
-    ///   Returns the cluster text for AId, or an empty string for id 0.
+    ///   Returns the cluster text for AId, or an empty string for id 0 and
+    ///   any id outside the pool.
     /// </summary>
     class function Resolve(AId: UInt32): string; static;
-    /// <summary>
-    ///   Terminal width in columns of the cluster AId, measured with the
-    ///   current TTuiUnicode.EmojiLevel. At least 1.
-    /// </summary>
-    class function WidthOf(AId: UInt32): Integer; static;
     /// <summary>
     ///   Frees the pool storage. Called from unit finalization.
     /// </summary>
     class procedure Shutdown; static;
+    /// <summary>
+    ///   Terminal width in columns of the cluster AId, measured with the
+    ///   current TTuiUnicode.EmojiLevel (cached; recomputed lazily when the
+    ///   level changes). At least 1.
+    /// </summary>
+    class function WidthOf(AId: UInt32): Integer; static;
   end;
 
 { TTuiCell }
@@ -103,15 +107,20 @@ type
   ///   emitted to the terminal.
   /// </summary>
   TTuiCell = record
+  strict private const
+    // Reserved ClusterId marking a continuation cell. Unreachable by the
+    // pool: interned ids grow from 1 and can never plausibly hit High(UInt32).
+    CContinuationId = High(UInt32);
   public
     /// <summary>
-    ///   Character to display in the cell. #0 marks a continuation cell:
-    ///   the column is covered by the multi-column glyph on its left.
+    ///   Character to display in the cell. #0 for continuation cells.
     /// </summary>
     Character: Char;
     /// <summary>
-    ///   Id of the grapheme cluster in TTuiClusterPool, or 0 when the cell
-    ///   holds the single code unit in Character.
+    ///   Id of the grapheme cluster in TTuiClusterPool, 0 when the cell
+    ///   holds the single code unit in Character, or the reserved sentinel
+    ///   marking a continuation cell (the column covered by the multi-column
+    ///   glyph on its left).
     /// </summary>
     ClusterId: UInt32;
     /// <summary>
@@ -220,30 +229,23 @@ begin
   begin
     FIds := TDictionary<string, UInt32>.Create;
     FClusters := TList<string>.Create;
+    FWidths := TList<Integer>.Create;
+    FWidthsLevel := TTuiUnicode.EmojiLevel;
   end;
   if FIds.TryGetValue(ACluster, Result) then
     Exit;
   FClusters.Add(ACluster);
+  FWidths.Add(-1); // width computed lazily by WidthOf
   Result := UInt32(FClusters.Count); // ids are 1-based; 0 = no cluster
   FIds.Add(ACluster, Result);
 end;
 
 class function TTuiClusterPool.Resolve(AId: UInt32): string;
 begin
-  if (AId = 0) or not Assigned(FClusters) or (Integer(AId) > FClusters.Count) then
+  // Unsigned comparison also rejects the continuation sentinel (High(UInt32)).
+  if (AId = 0) or not Assigned(FClusters) or (AId > UInt32(FClusters.Count)) then
     Exit('');
   Result := FClusters[Integer(AId) - 1];
-end;
-
-class function TTuiClusterPool.WidthOf(AId: UInt32): Integer;
-begin
-  // Measured on demand (not cached at intern time) so that a change of
-  // TTuiUnicode.EmojiLevel is picked up immediately. Clusters are short and
-  // rare in a frame, so the cost is negligible.
-  var LCluster := Resolve(AId);
-  Result := TTuiUnicode.ClusterWidthAt(LCluster, 1, Length(LCluster));
-  if Result < 1 then
-    Result := 1;
 end;
 
 class procedure TTuiClusterPool.Shutdown;
@@ -252,6 +254,31 @@ begin
     FreeAndNil(FIds);
   if Assigned(FClusters) then
     FreeAndNil(FClusters);
+  if Assigned(FWidths) then
+    FreeAndNil(FWidths);
+end;
+
+class function TTuiClusterPool.WidthOf(AId: UInt32): Integer;
+begin
+  if (AId = 0) or not Assigned(FClusters) or (AId > UInt32(FClusters.Count)) then
+    Exit(1);
+  // The cached widths depend on the emoji level: invalidate them lazily when
+  // the level changes (normally only once, at backend Open).
+  if FWidthsLevel <> TTuiUnicode.EmojiLevel then
+  begin
+    for var LIndex := 0 to FWidths.Count - 1 do
+      FWidths[LIndex] := -1;
+    FWidthsLevel := TTuiUnicode.EmojiLevel;
+  end;
+  Result := FWidths[Integer(AId) - 1];
+  if Result < 0 then
+  begin
+    var LCluster := FClusters[Integer(AId) - 1];
+    Result := TTuiUnicode.ClusterWidthAt(LCluster, 1, Length(LCluster));
+    if Result < 1 then
+      Result := 1;
+    FWidths[Integer(AId) - 1] := Result;
+  end;
 end;
 
 { TTuiCell }
@@ -278,7 +305,7 @@ end;
 class function TTuiCell.Continuation(const AStyle: TTuiStyle): TTuiCell;
 begin
   Result.Character := #0;
-  Result.ClusterId := 0;
+  Result.ClusterId := CContinuationId;
   Result.Style := AStyle;
 end;
 
@@ -291,12 +318,14 @@ end;
 
 function TTuiCell.IsContinuation: Boolean;
 begin
-  Result := (Character = #0) and (ClusterId = 0);
+  Result := ClusterId = CContinuationId;
 end;
 
 function TTuiCell.Text: string;
 begin
-  if ClusterId <> 0 then
+  if IsContinuation then
+    Result := ''
+  else if ClusterId <> 0 then
     Result := TTuiClusterPool.Resolve(ClusterId)
   else
     Result := Character;
@@ -304,7 +333,9 @@ end;
 
 function TTuiCell.Width: Integer;
 begin
-  if ClusterId <> 0 then
+  if IsContinuation then
+    Result := 1
+  else if ClusterId <> 0 then
     Result := TTuiClusterPool.WidthOf(ClusterId)
   else if TTuiUnicode.CodePointWidth(Ord(Character)) = 2 then
     Result := 2

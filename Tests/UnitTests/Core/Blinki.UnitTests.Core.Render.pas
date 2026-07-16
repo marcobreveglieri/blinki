@@ -84,6 +84,9 @@ type
   [TestFixture]
   TRenderTests = class
   public
+    /// <summary>
+    ///   Pins the emoji level to elFull so width assertions are deterministic.
+    /// </summary>
     [Setup]
     procedure Setup;
 
@@ -139,6 +142,9 @@ type
   [TestFixture]
   TCanvasEmojiTests = class
   public
+    /// <summary>
+    ///   Pins the emoji level to elFull so width assertions are deterministic.
+    /// </summary>
     [Setup]
     procedure Setup;
 

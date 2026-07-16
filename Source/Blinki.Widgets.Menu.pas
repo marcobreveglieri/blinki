@@ -151,7 +151,9 @@ implementation
 
 uses
   System.Math,
-  Blinki.Core.Input;
+  Blinki.Core.Ansi,
+  Blinki.Core.Input,
+  Blinki.Core.Unicode;
 
 { TTuiMenu }
 
@@ -263,9 +265,8 @@ begin
 
     ACanvas.FillRect(LRowRect, ' ', LStyle);
 
-    var LText := LItem.Caption;
-    if Length(LText) > ARect.Width then
-      LText := Copy(LText, 1, ARect.Width);
+    // Truncate by columns so a wide glyph (CJK, emoji) is never cut in half.
+    var LText := TTuiAnsi.TruncateToWidth(LItem.Caption, ARect.Width);
 
     if LItem.Shortcut = #0 then
     begin
@@ -277,12 +278,17 @@ begin
       var LShortIdx := Pos(UpCase(LItem.Shortcut), UpperCase(LText));
       if LShortIdx = 0 then
         LShortIdx := Pos(LowerCase(LItem.Shortcut), LText);
-      if (LShortIdx > 0) and (LShortIdx <= ARect.Width) then
+      if LShortIdx > 0 then
       begin
         ACanvas.WriteAt(ARect.Left, LRow, LText, LStyle);
-        // Overwrite the shortcut character with the underline attribute
-        ACanvas.WriteAt(ARect.Left + LShortIdx - 1, LRow, LText[LShortIdx],
-          TTuiStyle.Create(LStyle.Foreground, LStyle.Background, [taUnderline]));
+        // Overwrite the shortcut character with the underline attribute.
+        // Pos returns a UTF-16 index: convert it to a terminal column so the
+        // underline lands on the right cell after wide glyphs (emoji, CJK).
+        var LShortCol := TTuiAnsi.VisibleLength(Copy(LText, 1, LShortIdx - 1));
+        if LShortCol < ARect.Width then
+          ACanvas.WriteAt(ARect.Left + LShortCol, LRow,
+            Copy(LText, LShortIdx, TTuiUnicode.GraphemeLengthAt(LText, LShortIdx)),
+            TTuiStyle.Create(LStyle.Foreground, LStyle.Background, [taUnderline]));
       end
       else
         ACanvas.WriteAt(ARect.Left, LRow, LText, LStyle);

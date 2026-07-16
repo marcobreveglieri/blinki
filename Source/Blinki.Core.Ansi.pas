@@ -575,20 +575,30 @@ begin
   var LResult := TStringList.Create;
   try
     var LLine := '';
+    var LLineWidth := 0;
     for var LWord in LWords do
     begin
       if LWord = '' then
         Continue;
-      if LLine = '' then
-        LLine := LWord
       // Measure columns, not UTF-16 units: wide CJK/emoji words would
-      // otherwise overflow the target width.
-      else if VisibleLength(LLine) + 1 + VisibleLength(LWord) <= AWidth then
-        LLine := LLine + ' ' + LWord
+      // otherwise overflow the target width. The line width is accumulated
+      // so each word is measured exactly once.
+      var LWordWidth := VisibleLength(LWord);
+      if LLine = '' then
+      begin
+        LLine := LWord;
+        LLineWidth := LWordWidth;
+      end
+      else if LLineWidth + 1 + LWordWidth <= AWidth then
+      begin
+        LLine := LLine + ' ' + LWord;
+        Inc(LLineWidth, 1 + LWordWidth);
+      end
       else
       begin
         LResult.Add(LLine);
         LLine := LWord;
+        LLineWidth := LWordWidth;
       end;
     end;
     if LLine <> '' then

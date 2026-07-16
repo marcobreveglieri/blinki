@@ -228,18 +228,16 @@ begin
   SetConsoleCP(CP_UTF8);
 
   // Detect the emoji capability of the host: Windows Terminal (WT_SESSION)
-  // and a few known emulators merge emoji grapheme clusters into one glyph;
-  // legacy conhost draws the parts separately, so widths must be measured
-  // as the sum of the parts. Applications can override TTuiUnicode.EmojiLevel
-  // after Open when the heuristic is wrong.
-  var LTermProgram := GetEnvironmentVariable('TERM_PROGRAM');
+  // and WezTerm (the one TERM_PROGRAM host with a Windows build) merge emoji
+  // grapheme clusters into one glyph; legacy conhost draws the parts
+  // separately, so widths must be measured as the sum of the parts. An
+  // explicit application assignment to TTuiUnicode.EmojiLevel always wins
+  // over this detection, whether it happens before or after Open.
   if (GetEnvironmentVariable('WT_SESSION') <> '') or
-     SameText(LTermProgram, 'WezTerm') or
-     SameText(LTermProgram, 'iTerm.app') or
-     SameText(LTermProgram, 'ghostty') then
-    TTuiUnicode.EmojiLevel := elFull
+     SameText(GetEnvironmentVariable('TERM_PROGRAM'), 'WezTerm') then
+    TTuiUnicode.ApplyDetectedEmojiLevel(elFull)
   else
-    TTuiUnicode.EmojiLevel := elBasic;
+    TTuiUnicode.ApplyDetectedEmojiLevel(elBasic);
 
   // Install the Ctrl+C handler for guaranteed cleanup
   GCtrlCBackend := Self;
@@ -377,6 +375,11 @@ begin
     else
       Exit; // unmapped key (e.g. standalone modifier key)
   end;
+  // A completed non-character key (Enter, arrows, ...) invalidates any
+  // stashed surrogate half from a malformed earlier sequence, so a stale
+  // high surrogate can never pair with a low surrogate typed much later.
+  if AKey.Code <> kcChar then
+    FPendingHighSurrogate := #0;
   Result := True;
 end;
 

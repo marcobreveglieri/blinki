@@ -73,16 +73,16 @@ type
     FTopLine: Integer;
     FViewHeight: Integer;
     procedure ClampCursor;
-    procedure ClampViewport(AViewWidth, AViewHeight: Integer);
+    procedure ClampViewport(ACursorCol, AViewWidth, AViewHeight: Integer);
     function  GetText: string;
     procedure InsertText(const AText: string);
     procedure RebuildStyles;
-    function  SnapColToBoundary(const ALine: string; ACol: Integer): Integer;
     procedure SetFocusedStyle(const AValue: TTuiStyle);
     procedure SetNormalStyle(const AValue: TTuiStyle);
     procedure SetPlaceholder(const AValue: string);
     procedure SetReadOnly(AValue: Boolean);
     procedure SetText(const AValue: string);
+    function  SnapColToBoundary(const ALine: string; ACol: Integer): Integer;
   protected
     procedure DoApplyTheme(const ATheme: TTuiTheme); override;
     function  DoHandleEvent(const AEvent: TTuiEvent): Boolean; override;
@@ -196,23 +196,10 @@ end;
 
 function TTuiTextArea.SnapColToBoundary(const ALine: string; ACol: Integer): Integer;
 begin
-  if ACol <= 0 then
-    Exit(0);
-  if ACol >= Length(ALine) then
-    Exit(Length(ALine));
-  // Find the largest cluster boundary not beyond ACol.
-  var LBoundary := 1;
-  while LBoundary <= ACol do
-  begin
-    var LNext := TTuiUnicode.NextGraphemeBoundary(ALine, LBoundary);
-    if LNext > ACol + 1 then
-      Break;
-    LBoundary := LNext;
-  end;
-  Result := LBoundary - 1;
+  Result := TTuiUnicode.SnapToClusterStart(ALine, ACol + 1) - 1;
 end;
 
-procedure TTuiTextArea.ClampViewport(AViewWidth, AViewHeight: Integer);
+procedure TTuiTextArea.ClampViewport(ACursorCol, AViewWidth, AViewHeight: Integer);
 begin
   if AViewHeight > 0 then
   begin
@@ -223,12 +210,15 @@ begin
     if FTopLine < 0 then
       FTopLine := 0;
   end;
+  // Horizontal scrolling works in terminal columns (ACursorCol is the
+  // column of the cursor, not its UTF-16 index) so wide glyphs scroll
+  // consistently with how DoRender draws them.
   if AViewWidth > 0 then
   begin
-    if FCursorCol < FLeftCol then
-      FLeftCol := FCursorCol;
-    if FCursorCol >= FLeftCol + AViewWidth then
-      FLeftCol := FCursorCol - AViewWidth + 1;
+    if ACursorCol < FLeftCol then
+      FLeftCol := ACursorCol;
+    if ACursorCol >= FLeftCol + AViewWidth then
+      FLeftCol := ACursorCol - AViewWidth + 1;
     if FLeftCol < 0 then
       FLeftCol := 0;
   end;
@@ -269,26 +259,37 @@ begin
   // Show placeholder when content is empty and widget is unfocused
   if (FLines.Count = 1) and (FLines[0] = '') and not Focused then
   begin
-    var LPlaceholder := Copy(FPlaceholder, 1, ARect.Width);
+    var LPlaceholder := TTuiAnsi.TruncateToWidth(FPlaceholder, ARect.Width);
     ACanvas.WriteAt(ARect.Left, ARect.Top, LPlaceholder, FPlaceholderStyle);
     Exit;
   end;
 
-  ClampViewport(ARect.Width, ARect.Height);
+  // Cursor column in terminal columns: drives both viewport clamping and
+  // cursor placement, keeping them consistent with column-based drawing.
+  var LCursorLine := FLines[FCursorRow];
+  var LCursorCol := TTuiAnsi.VisibleLength(Copy(LCursorLine, 1, FCursorCol));
+  ClampViewport(LCursorCol, ARect.Width, ARect.Height);
 
   ACanvas.PushClip(ARect);
   try
-    // Draw visible lines. The horizontal cut starts on a cluster boundary
-    // and the right edge is truncated by columns, so emoji never split.
+    // Draw visible lines: skip whole clusters up to FLeftCol columns, then
+    // truncate by columns, so emoji and CJK never split at either edge.
     for var LRow := 0 to ARect.Height - 1 do
     begin
       var LLineIndex := FTopLine + LRow;
       if LLineIndex >= FLines.Count then
         Break;
       var LLineText := FLines[LLineIndex];
-      var LStartCol := SnapColToBoundary(LLineText, FLeftCol);
+      var LSkipIndex := 1;
+      var LSkipCols := 0;
+      while (LSkipIndex <= Length(LLineText)) and (LSkipCols < FLeftCol) do
+      begin
+        var LLen := TTuiUnicode.GraphemeLengthAt(LLineText, LSkipIndex);
+        Inc(LSkipCols, TTuiUnicode.ClusterWidthAt(LLineText, LSkipIndex, LLen));
+        Inc(LSkipIndex, LLen);
+      end;
       var LVisible := TTuiAnsi.TruncateToWidth(
-        Copy(LLineText, LStartCol + 1, MaxInt), ARect.Width);
+        Copy(LLineText, LSkipIndex, MaxInt), ARect.Width);
       if LVisible <> '' then
         ACanvas.WriteAt(ARect.Left, ARect.Top + LRow, LVisible, LBase);
     end;
@@ -297,11 +298,10 @@ begin
     if Focused and not FReadOnly then
     begin
       var LCursorScreenRow := FCursorRow - FTopLine;
-      var LCursorScreenCol := FCursorCol - FLeftCol;
+      var LCursorScreenCol := LCursorCol - FLeftCol;
       if (LCursorScreenRow >= 0) and (LCursorScreenRow < ARect.Height) and
          (LCursorScreenCol >= 0) and (LCursorScreenCol < ARect.Width) then
       begin
-        var LCursorLine := FLines[FCursorRow];
         // Highlight the whole cluster under the cursor, not just its first
         // code unit, so the inverse-video block covers the entire emoji.
         var LCursorText: string;
@@ -309,6 +309,10 @@ begin
           LCursorText := Copy(LCursorLine, FCursorCol + 1,
             TTuiUnicode.GraphemeLengthAt(LCursorLine, FCursorCol + 1))
         else
+          LCursorText := ' ';
+        // A 2-column cluster that would overflow the right edge degrades to
+        // a plain block cursor: never paint outside the widget.
+        if LCursorScreenCol + TTuiAnsi.VisibleLength(LCursorText) > ARect.Width then
           LCursorText := ' ';
         ACanvas.WriteAt(
           ARect.Left + LCursorScreenCol,

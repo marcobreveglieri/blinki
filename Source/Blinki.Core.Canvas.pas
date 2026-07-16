@@ -68,6 +68,9 @@ type
     FBackend: ITuiConsoleBackend;
     FFront: TTuiFrameBuffer;
     FBack: TTuiFrameBuffer;
+    // True when the back buffer may contain continuation cells: lets
+    // WriteCell skip the split-repair neighbor probe on emoji-free frames.
+    FBackHasGlyphSpans: Boolean;
     FDirty: Boolean;
     FClipStack: TStack<TRect>;
     procedure BlankGlyphSpan(AX, AY: Integer);
@@ -222,7 +225,11 @@ procedure TTuiCanvas.BlankGlyphSpan(AX, AY: Integer);
 begin
   // Split repair: (AX, AY) is about to be overwritten. If it is part of a
   // multi-column glyph (head or continuation), blank the rest of that glyph's
-  // span so no orphaned half ever reaches the terminal.
+  // span so no orphaned half ever reaches the terminal. Blanking respects the
+  // active clip: cells belonging to a neighboring widget are never touched
+  // (the flush skips a headless continuation, leaving that side stale rather
+  // than corrupting the neighbor's buffer).
+  var LClip := ActiveClipRect;
   var LStart := AX;
   while (LStart > 0) and FBack[LStart, AY].IsContinuation do
     Dec(LStart);
@@ -232,7 +239,7 @@ begin
   if LEnd - LStart <= 1 then
     Exit;
   for var LFix := LStart to LEnd - 1 do
-    if LFix <> AX then
+    if (LFix <> AX) and (LFix >= LClip.Left) and (LFix < LClip.Right) then
       FBack[LFix, AY] := TTuiCell.Make(' ', FBack[LFix, AY].Style);
 end;
 
@@ -242,10 +249,14 @@ begin
   if (AX >= LClip.Left) and (AX < LClip.Right) and
      (AY >= LClip.Top)  and (AY < LClip.Bottom) then
   begin
-    var LOld := FBack[AX, AY];
-    if LOld.IsContinuation or
-       ((AX + 1 < FBack.Width) and FBack[AX + 1, AY].IsContinuation) then
+    // The neighbor probe is only needed when some continuation cell has been
+    // written since the last full clear; plain ASCII frames skip it entirely.
+    if FBackHasGlyphSpans and
+       (FBack[AX, AY].IsContinuation or
+        ((AX + 1 < FBack.Width) and FBack[AX + 1, AY].IsContinuation)) then
       BlankGlyphSpan(AX, AY);
+    if ACell.IsContinuation then
+      FBackHasGlyphSpans := True;
     FBack[AX, AY] := ACell;
     FDirty := True;
   end;
@@ -297,18 +308,21 @@ end;
 procedure TTuiCanvas.Clear;
 begin
   FBack.Clear(TTuiCell.Blank);
+  FBackHasGlyphSpans := False;
   FDirty := True;
 end;
 
 procedure TTuiCanvas.Clear(const AStyle: TTuiStyle);
 begin
   FBack.Clear(TTuiCell.Make(' ', AStyle));
+  FBackHasGlyphSpans := False;
   FDirty := True;
 end;
 
 procedure TTuiCanvas.Clear(AFiller: Char; const AStyle: TTuiStyle);
 begin
   FBack.Clear(TTuiCell.Make(AFiller, AStyle));
+  FBackHasGlyphSpans := False;
   FDirty := True;
 end;
 
@@ -329,8 +343,12 @@ begin
     begin
       // Head cell carries the whole cluster; the following columns get
       // continuation placeholders so the diff renderer never emits stale
-      // content over the right half of the glyph.
-      WriteCell(LX, AY, TTuiCell.MakeCluster(Copy(AText, LIndex, LLen), AStyle));
+      // content over the right half of the glyph. Single-unit clusters take
+      // the allocation-free path (no Copy, no interning).
+      if LLen = 1 then
+        WriteCell(LX, AY, TTuiCell.Make(AText[LIndex], AStyle))
+      else
+        WriteCell(LX, AY, TTuiCell.MakeCluster(Copy(AText, LIndex, LLen), AStyle));
       for var LCol := 1 to LWidth - 1 do
         WriteCell(LX + LCol, AY, TTuiCell.Continuation(AStyle));
     end
@@ -477,7 +495,12 @@ begin
           LBuilder.Append(TTuiAnsi.CursorTo(LY + 1, LEmitX + 1));
 
         LBuilder.Append(TTuiAnsi.ApplyStyleDelta(LLastStyle, LCell.Style));
-        LBuilder.Append(LCell.Text);
+        // Plain cells append the Char directly (no string allocation on the
+        // hot diff loop); only cluster cells resolve their interned text.
+        if LCell.ClusterId = 0 then
+          LBuilder.Append(LCell.Character)
+        else
+          LBuilder.Append(TTuiClusterPool.Resolve(LCell.ClusterId));
 
         if LCell.ClusterId <> 0 then
           // Terminals disagree on the cursor advance of emoji sequences
@@ -485,8 +508,15 @@ begin
           // after a cluster so alignment self-heals.
           LLastX := -2
         else if LCell.Width = 2 then
-          // Wide char (2 col): LX+1 is not visually adjacent; force CursorTo.
-          LLastX := LEmitX + 1
+        begin
+          // A BMP emoji drawn wide by our tables may advance only 1 column
+          // on legacy hosts: resync like a cluster. CJK EAW-wide advance is
+          // reliable everywhere, so keep the cheap adjacency bookkeeping.
+          if TTuiUnicode.IsEmojiPresentation(Ord(LCell.Character)) then
+            LLastX := -2
+          else
+            LLastX := LEmitX + 1;
+        end
         else
           LLastX := LEmitX;
         LLastY := LY;
@@ -527,6 +557,7 @@ begin
   FBackend.Flush;
   FBack.Resize(ANewSize.cx, ANewSize.cy);
   FFront.Resize(ANewSize.cx, ANewSize.cy);
+  FBackHasGlyphSpans := False;
   FDirty := True;
 end;
 

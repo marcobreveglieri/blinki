@@ -379,29 +379,29 @@ begin
           akBearer:
             if FFieldIndex = 0 then
             begin
-              FToken := FToken + LKey.Character;
+              FToken := FToken + LKey.CharText;
               Invalidate;
             end;
           akBasic:
             if FFieldIndex = 0 then
             begin
-              FUsername := FUsername + LKey.Character;
+              FUsername := FUsername + LKey.CharText;
               Invalidate;
             end
             else
             begin
-              FPassword := FPassword + LKey.Character;
+              FPassword := FPassword + LKey.CharText;
               Invalidate;
             end;
           akApiKey:
             if FFieldIndex = 0 then
             begin
-              FHeaderName := FHeaderName + LKey.Character;
+              FHeaderName := FHeaderName + LKey.CharText;
               Invalidate;
             end
             else
             begin
-              FHeaderValue := FHeaderValue + LKey.Character;
+              FHeaderValue := FHeaderValue + LKey.CharText;
               Invalidate;
             end;
         end;

@@ -78,8 +78,7 @@ type
     procedure SetNormalStyle(const AValue: TTuiStyle);
     procedure SetFocusedStyle(const AValue: TTuiStyle);
     procedure RebuildStyles;
-    procedure ClampViewOffset(const ADisplay: string;
-      ADisplayCursorPos, AViewWidth: Integer);
+    procedure ClampViewOffset(ACursorCol, AViewWidth: Integer);
     function  BuildDisplay: string;
   protected
     procedure DoInit; override;
@@ -202,36 +201,20 @@ end;
 
 function TTuiTextInput.SnapCursorToBoundary(AValue: Integer): Integer;
 begin
-  if AValue <= 0 then
-    Exit(0);
-  if AValue >= Length(FText) then
-    Exit(Length(FText));
-  // Find the largest cluster boundary not beyond AValue.
-  var LBoundary := 1;
-  while LBoundary <= AValue do
-  begin
-    var LNext := TTuiUnicode.NextGraphemeBoundary(FText, LBoundary);
-    if LNext > AValue + 1 then
-      Break;
-    LBoundary := LNext;
-  end;
-  Result := LBoundary - 1;
+  Result := TTuiUnicode.SnapToClusterStart(FText, AValue + 1) - 1;
 end;
 
-procedure TTuiTextInput.ClampViewOffset(const ADisplay: string;
-  ADisplayCursorPos, AViewWidth: Integer);
+procedure TTuiTextInput.ClampViewOffset(ACursorCol, AViewWidth: Integer);
 begin
   if AViewWidth <= 0 then
     Exit;
 
-  var LCursorCol := TTuiAnsi.VisibleLength(Copy(ADisplay, 1, ADisplayCursorPos));
-
   // cursor is too far left relative to the viewport
-  if LCursorCol < FViewOffset then
-    FViewOffset := LCursorCol;
+  if ACursorCol < FViewOffset then
+    FViewOffset := ACursorCol;
   // cursor is too far right relative to the viewport
-  if LCursorCol >= FViewOffset + AViewWidth then
-    FViewOffset := LCursorCol - AViewWidth + 1;
+  if ACursorCol >= FViewOffset + AViewWidth then
+    FViewOffset := ACursorCol - AViewWidth + 1;
 
   if FViewOffset < 0 then
     FViewOffset := 0;
@@ -258,7 +241,10 @@ begin
 
   var LDisplay := BuildDisplay;
   var LDisplayCursor := DisplayCursorPos;
-  ClampViewOffset(LDisplay, LDisplayCursor, ARect.Width);
+  // Compute the cursor column once and reuse it for viewport clamping and
+  // cursor placement below.
+  var LCursorCol := TTuiAnsi.VisibleLength(Copy(LDisplay, 1, LDisplayCursor));
+  ClampViewOffset(LCursorCol, ARect.Width);
 
   // Find which part of LDisplay starts at FViewOffset (in columns), skipping
   // whole grapheme clusters so surrogate pairs and emoji sequences never split.
@@ -276,7 +262,6 @@ begin
 
   if Focused then
   begin
-    var LCursorCol := TTuiAnsi.VisibleLength(Copy(LDisplay, 1, LDisplayCursor));
     var LCursorX := ARect.Left + (LCursorCol - FViewOffset);
     if (LCursorX >= ARect.Left) and (LCursorX < ARect.Right) then
     begin
@@ -287,6 +272,10 @@ begin
         LCursorText := Copy(LDisplay, LDisplayCursor + 1,
           TTuiUnicode.GraphemeLengthAt(LDisplay, LDisplayCursor + 1))
       else
+        LCursorText := ' ';
+      // A 2-column cluster that would overflow the widget's right edge
+      // degrades to a plain block cursor: never paint outside the rect.
+      if LCursorX + TTuiAnsi.VisibleLength(LCursorText) > ARect.Right then
         LCursorText := ' ';
       ACanvas.WriteAt(LCursorX, ARect.Top, LCursorText, FCursorStyle);
     end;

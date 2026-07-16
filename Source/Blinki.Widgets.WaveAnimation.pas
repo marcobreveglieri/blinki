@@ -106,7 +106,9 @@ implementation
 
 uses
   System.Math,
+  Blinki.Core.Ansi,
   Blinki.Core.Event,
+  Blinki.Core.Unicode,
   Blinki.FX.Gradient;
 
 { TTuiWaveAnimation }
@@ -144,11 +146,9 @@ begin
   ACanvas.FillRect(ARect, ' ',
     TTuiStyle.Create(TTuiColor.Default, FBgColor));
 
-  var LText := FText;
-  if Length(LText) > ARect.Width then
-    LText := Copy(LText, 1, ARect.Width);
-  var LLen := Length(LText);
-  if LLen = 0 then
+  // Truncate by columns so a wide glyph (CJK, emoji) is never cut in half.
+  var LText := TTuiAnsi.TruncateToWidth(FText, ARect.Width);
+  if LText = '' then
     Exit;
 
   // Non-RGB colors: fall back to plain rendering without gradient
@@ -159,13 +159,22 @@ begin
     Exit;
   end;
 
-  for var LIndex := 1 to LLen do
+  // Iterate grapheme clusters; the wave phase advances per terminal column.
+  var LIndex := 1;
+  var LCol := 0;
+  while LIndex <= Length(LText) do
   begin
-    // Phase offset of 0.3 rad per character to create the wave
-    var LT := (Sin(FPhase + (LIndex - 1) * 0.3) + 1.0) / 2.0;
+    var LLen := TTuiUnicode.GraphemeLengthAt(LText, LIndex);
+    var LWidth := TTuiUnicode.ClusterWidthAt(LText, LIndex, LLen);
+    if LWidth < 1 then
+      LWidth := 1;
+    // Phase offset of 0.3 rad per column to create the wave
+    var LT := (Sin(FPhase + LCol * 0.3) + 1.0) / 2.0;
     var LFg := LerpColor(FBaseColor, FPeakColor, LT);
-    ACanvas.WriteAt(ARect.Left + LIndex - 1, ARect.Top, LText[LIndex],
+    ACanvas.WriteAt(ARect.Left + LCol, ARect.Top, Copy(LText, LIndex, LLen),
       TTuiStyle.Create(LFg, FBgColor, FAttrs));
+    Inc(LCol, LWidth);
+    Inc(LIndex, LLen);
   end;
 end;
 

@@ -47,6 +47,9 @@ type
   [TestFixture]
   TAnsiMetricsTests = class
   public
+    /// <summary>
+    ///   Pins the emoji level to elFull so width assertions are deterministic.
+    /// </summary>
     [Setup]
     procedure Setup;
 
