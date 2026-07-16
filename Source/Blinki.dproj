@@ -122,6 +122,7 @@
         <DCCReference Include="Blinki.Core.Canvas.pas"/>
         <DCCReference Include="Blinki.Core.Console.pas"/>
         <DCCReference Include="Blinki.Core.Console.Posix.pas"/>
+        <DCCReference Include="Blinki.Core.Console.Sequences.pas"/>
         <DCCReference Include="Blinki.Core.Console.Windows.pas"/>
         <DCCReference Include="Blinki.Core.Emoji.pas"/>
         <DCCReference Include="Blinki.Core.Event.pas"/>

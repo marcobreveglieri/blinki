@@ -135,6 +135,7 @@
         <DCCReference Include="Blinki.UnitTests.Core.Emoji.pas"/>
         <DCCReference Include="Blinki.UnitTests.Core.Geometry.pas"/>
         <DCCReference Include="Blinki.UnitTests.Core.Render.pas"/>
+        <DCCReference Include="Blinki.UnitTests.Core.Sequences.pas"/>
         <DCCReference Include="Blinki.UnitTests.Core.Unicode.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>

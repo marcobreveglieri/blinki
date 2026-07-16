@@ -37,6 +37,7 @@ contains
   Blinki.Core.Canvas in 'Blinki.Core.Canvas.pas',
   Blinki.Core.Console in 'Blinki.Core.Console.pas',
   Blinki.Core.Console.Posix in 'Blinki.Core.Console.Posix.pas',
+  Blinki.Core.Console.Sequences in 'Blinki.Core.Console.Sequences.pas',
   Blinki.Core.Console.Windows in 'Blinki.Core.Console.Windows.pas',
   Blinki.Core.Emoji in 'Blinki.Core.Emoji.pas',
   Blinki.Core.Event in 'Blinki.Core.Event.pas',

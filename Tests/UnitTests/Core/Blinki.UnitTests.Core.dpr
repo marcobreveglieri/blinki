@@ -39,6 +39,7 @@ uses
   Blinki.UnitTests.Core.Emoji in 'Blinki.UnitTests.Core.Emoji.pas',
   Blinki.UnitTests.Core.Geometry in 'Blinki.UnitTests.Core.Geometry.pas',
   Blinki.UnitTests.Core.Render in 'Blinki.UnitTests.Core.Render.pas',
+  Blinki.UnitTests.Core.Sequences in 'Blinki.UnitTests.Core.Sequences.pas',
   Blinki.UnitTests.Core.Unicode in 'Blinki.UnitTests.Core.Unicode.pas';
 
 begin

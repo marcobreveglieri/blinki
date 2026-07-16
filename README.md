@@ -105,8 +105,11 @@ external dependencies, no DLLs, no design-time components, and no package to ins
   single batched ANSI write per frame.
 - ⌨️ **Automatic focus ring** — Tab / Shift+Tab navigation handled for you; widgets just declare
   themselves focusable.
-- 🪟 **Native Windows console** — built directly on the Win32 console API and Virtual Terminal
-  sequences. All platform code is quarantined behind a single interface seam.
+- 🪟 **Native Windows console, 🐧 Linux too** — Windows builds directly on the Win32 console
+  API and Virtual Terminal sequences; Linux64 builds on termios raw mode, `poll(2)` and a
+  fully unit-tested escape-sequence decoder (arrow keys, F-keys, Shift+Tab, SGR mouse,
+  UTF-8 input). All platform code is quarantined behind a single interface seam — to build
+  for Linux, enable the Linux64 platform on your project in the IDE and deploy via PAServer.
 - 🧱 **Easy to extend** — descend from `TTuiWidget`, override `DoRender`, and you have a new widget.
 
 ---
