@@ -255,7 +255,7 @@ Blocks fetches the sources, compiles the `Blinki` runtime package with MSBuild, 
 
 ## Widget Catalog
 
-Blinki ships **24 built-in widgets** organized into six categories. See the full reference in [Widget Catalog](Wiki/Widget-Catalog.md).
+Blinki ships **24 built-in widgets** organized into six categories.
 
 ### Text & Static
 
@@ -364,13 +364,19 @@ Tests\UnitTests\     DUnitX unit tests (BlinkiUnitTests.dproj)
 ```
 
 For the full story — the event loop, the rendering pipeline, the widget contract, and the Win32
-API surface — see the [documentation](#documentation).
+API surface — see the [Architecture & Advanced Usage](https://github.com/marcobreveglieri/blinki/wiki/Architecture-and-Advanced-Usage) wiki page.
 
 ---
 
 ## Documentation
 
-A **full project Wiki** is under construction.
+The **project Wiki** covers installation, a from-scratch first TUI, the internal architecture,
+and how to contribute:
+
+- [Home](https://github.com/marcobreveglieri/blinki/wiki)
+- [Getting Started](https://github.com/marcobreveglieri/blinki/wiki/Getting-Started)
+- [Architecture & Advanced Usage](https://github.com/marcobreveglieri/blinki/wiki/Architecture-and-Advanced-Usage)
+- [Contributing](https://github.com/marcobreveglieri/blinki/wiki/Contributing)
 
 The coding style is documented in [`STYLE_GUIDE.md`](STYLE_GUIDE.md).
 
