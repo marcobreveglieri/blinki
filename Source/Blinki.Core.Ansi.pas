@@ -240,22 +240,40 @@ type
     /// </summary>
     class function SetTitle(const ATitle: string): string; static;
     {$ENDREGION}
-    {$REGION 'Utilities'}
+    {$REGION 'Mouse reporting'}
     /// <summary>
-    ///   True for EAW = W/F characters (CJK, Hangul, Fullwidth): occupy 2 terminal columns.
+    ///   Enables terminal mouse reporting: button presses and releases
+    ///   (mode 1000) with SGR extended coordinates (mode 1006). Used by the
+    ///   POSIX backend; pair with MouseTrackingOff on shutdown.
     /// </summary>
-    class function IsWideChar(ACh: Char): Boolean; static;
+    class function MouseTrackingOn: string; static;
 
     /// <summary>
-    ///   Computes the visible length of a string, excluding ANSI escape sequences
-    ///   (CSI ... [A-Za-z] and OSC ... BEL/ST). Correctly accounts for WideChar
-    ///   characters (CJK) that occupy 2 columns.
+    ///   Disables the mouse reporting modes enabled by MouseTrackingOn.
+    /// </summary>
+    class function MouseTrackingOff: string; static;
+    {$ENDREGION}
+    {$REGION 'Utilities'}
+    /// <summary>
+    ///   True for single UTF-16 code units that occupy 2 terminal columns
+    ///   (CJK, Hangul, Fullwidth). Cannot see surrogate pairs or grapheme
+    ///   clusters, so it misses every non-BMP emoji.
+    /// </summary>
+    class function IsWideChar(ACh: Char): Boolean; static;
+      deprecated 'Use TTuiUnicode.CodePointWidth / ClusterWidthAt';
+
+    /// <summary>
+    ///   Computes the visible width in columns of a string, excluding ANSI
+    ///   escape sequences (CSI ... [A-Za-z] and OSC ... BEL/ST). Measures
+    ///   grapheme clusters: CJK and emoji (including ZWJ sequences, flags and
+    ///   variation selectors) are accounted at their real terminal width.
     /// </summary>
     class function VisibleLength(const AText: string): Integer; static;
 
     /// <summary>
     ///   Returns a substring of AText that fits within AMaxWidth columns.
-    ///   Correctly handles WideChar characters.
+    ///   Never splits a surrogate pair or a grapheme cluster: when the next
+    ///   cluster does not fit, the string is cut right before it.
     /// </summary>
     class function TruncateToWidth(const AText: string; AMaxWidth: Integer): string; static;
 
@@ -303,7 +321,8 @@ implementation
 
 uses
   System.Classes,
-  System.SysUtils;
+  System.SysUtils,
+  Blinki.Core.Unicode;
 
 const
   CSI   = #27'[';
@@ -483,23 +502,19 @@ begin
   Result := OSC + '0;' + ATitle + BEL;
 end;
 
+class function TTuiAnsi.MouseTrackingOn: string;
+begin
+  Result := CSI + '?1000;1006h';
+end;
+
+class function TTuiAnsi.MouseTrackingOff: string;
+begin
+  Result := CSI + '?1000;1006l';
+end;
+
 class function TTuiAnsi.IsWideChar(ACh: Char): Boolean;
 begin
-  var CP: Cardinal := Ord(ACh);
-  Result :=
-    ((CP >= $1100) and (CP <= $115F)) or  // Hangul Jamo
-    ((CP >= $2E80) and (CP <= $303F)) or  // CJK Radicals, Kangxi, CJK Symbols
-    ((CP >= $3040) and (CP <= $33FF)) or  // Hiragana, Katakana, Bopomofo, Hangul Compat.
-    ((CP >= $3400) and (CP <= $4DBF)) or  // CJK Ext-A
-    ((CP >= $4E00) and (CP <= $9FFF)) or  // CJK Unified Ideographs
-    ((CP >= $A000) and (CP <= $A4CF)) or  // Yi
-    ((CP >= $A960) and (CP <= $A97F)) or  // Hangul Jamo Extended-A
-    ((CP >= $AC00) and (CP <= $D7FF)) or  // Hangul Syllables + Jamo Ext-B
-    ((CP >= $F900) and (CP <= $FAFF)) or  // CJK Compatibility Ideographs
-    ((CP >= $FE10) and (CP <= $FE1F)) or  // Vertical Forms
-    ((CP >= $FE30) and (CP <= $FE6F)) or  // CJK Compat. Forms + Small Form Variants
-    ((CP >= $FF01) and (CP <= $FF60)) or  // Fullwidth Forms (EAW = F)
-    ((CP >= $FFE0) and (CP <= $FFE6));    // Fullwidth Signs (EAW = F)
+  Result := TTuiUnicode.CodePointWidth(Ord(ACh)) = 2;
 end;
 
 class function TTuiAnsi.VisibleLength(const AText: string): Integer;
@@ -542,11 +557,11 @@ begin
       end;
     end
     else begin
-      if IsWideChar(LChar) then
-        Inc(Result, 2)
-      else
-        Inc(Result);
-      Inc(LIndex);
+      // Measure one grapheme cluster at a time so surrogate pairs, ZWJ
+      // sequences and variation selectors count at their real width.
+      var LLen := TTuiUnicode.GraphemeLengthAt(AText, LIndex);
+      Inc(Result, TTuiUnicode.ClusterWidthAt(AText, LIndex, LLen));
+      Inc(LIndex, LLen);
     end;
   end;
 end;
@@ -559,16 +574,14 @@ begin
   var LIndex := 1;
   while LIndex <= Length(AText) do
   begin
-    var LChar := AText[LIndex];
-    var LCharWidth := 1;
-    if IsWideChar(LChar) then
-      LCharWidth := 2;
+    var LLen := TTuiUnicode.GraphemeLengthAt(AText, LIndex);
+    var LClusterWidth := TTuiUnicode.ClusterWidthAt(AText, LIndex, LLen);
 
-    if LCurrentWidth + LCharWidth > AMaxWidth then
+    if LCurrentWidth + LClusterWidth > AMaxWidth then
       Break;
 
-    Inc(LCurrentWidth, LCharWidth);
-    Inc(LIndex);
+    Inc(LCurrentWidth, LClusterWidth);
+    Inc(LIndex, LLen);
   end;
   Result := Copy(AText, 1, LIndex - 1);
 end;
@@ -585,18 +598,30 @@ begin
   var LResult := TStringList.Create;
   try
     var LLine := '';
+    var LLineWidth := 0;
     for var LWord in LWords do
     begin
       if LWord = '' then
         Continue;
+      // Measure columns, not UTF-16 units: wide CJK/emoji words would
+      // otherwise overflow the target width. The line width is accumulated
+      // so each word is measured exactly once.
+      var LWordWidth := VisibleLength(LWord);
       if LLine = '' then
-        LLine := LWord
-      else if Length(LLine) + 1 + Length(LWord) <= AWidth then
-        LLine := LLine + ' ' + LWord
+      begin
+        LLine := LWord;
+        LLineWidth := LWordWidth;
+      end
+      else if LLineWidth + 1 + LWordWidth <= AWidth then
+      begin
+        LLine := LLine + ' ' + LWord;
+        Inc(LLineWidth, 1 + LWordWidth);
+      end
       else
       begin
         LResult.Add(LLine);
         LLine := LWord;
+        LLineWidth := LWordWidth;
       end;
     end;
     if LLine <> '' then

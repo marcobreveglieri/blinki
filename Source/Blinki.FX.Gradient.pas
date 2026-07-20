@@ -35,7 +35,8 @@ interface
 uses
   System.SysUtils,
   Blinki.Core.Canvas,
-  Blinki.Core.Style;
+  Blinki.Core.Style,
+  Blinki.Core.Unicode;
 
 type
 
@@ -107,19 +108,30 @@ begin
     raise ETuiFX.Create('DrawGradient: AFrom must be ckRGB');
   if ATo.Kind <> ckRGB then
     raise ETuiFX.Create('DrawGradient: ATo must be ckRGB');
-  var LLen := Length(AText);
-  if LLen = 0 then
+  // Iterate grapheme clusters and interpolate on terminal columns, so wide
+  // glyphs (CJK, emoji) keep their head+continuation pair intact and the
+  // gradient stays linear on screen.
+  var LTotalWidth := TTuiUnicode.StringWidth(AText);
+  if LTotalWidth = 0 then
     Exit;
-  var LT: Double;
-  for var LIndex := 1 to LLen do
+  var LIndex := 1;
+  var LCol := 0;
+  while LIndex <= Length(AText) do
   begin
-    if LLen = 1 then
+    var LLen := TTuiUnicode.GraphemeLengthAt(AText, LIndex);
+    var LWidth := TTuiUnicode.ClusterWidthAt(AText, LIndex, LLen);
+    if LWidth < 1 then
+      LWidth := 1;
+    var LT: Double;
+    if LTotalWidth = 1 then
       LT := 0.0
     else
-      LT := (LIndex - 1) / (LLen - 1);
+      LT := LCol / (LTotalWidth - 1);
     var LFg := LerpColor(AFrom, ATo, LT);
-    ACanvas.WriteAt(AX + LIndex - 1, AY, AText[LIndex],
+    ACanvas.WriteAt(AX + LCol, AY, Copy(AText, LIndex, LLen),
       TTuiStyle.Create(LFg, ABg, AAttrs));
+    Inc(LCol, LWidth);
+    Inc(LIndex, LLen);
   end;
 end;
 

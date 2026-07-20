@@ -28,7 +28,14 @@
 /// </summary>
 unit Blinki.Core.Input;
 
+{$IFDEF FPC}
+  {$MODE DELPHI}
+{$ENDIF}
+
 interface
+
+uses
+  Blinki.Core.Unicode;
 
 type
 
@@ -200,14 +207,30 @@ type
 
     /// <summary>
     ///   Unicode character of the key. Valid only when Code = kcChar.
-    ///   For all other codes the value is #0.
+    ///   For all other codes the value is #0. For characters outside the BMP
+    ///   this holds only the first UTF-16 code unit: read CodePoint or
+    ///   CharText to obtain the whole character.
     /// </summary>
     Character: Char;
+
+    /// <summary>
+    ///   Full Unicode code point of the key. Valid only when Code = kcChar;
+    ///   0 otherwise. Backends reassemble surrogate pairs (Windows) and
+    ///   UTF-8 sequences (POSIX) into a single event, so emoji typed or
+    ///   pasted into the terminal arrive here whole.
+    /// </summary>
+    CodePoint: TTuiCodePoint;
 
     /// <summary>
     ///   Modifiers active at the time the key was pressed.
     /// </summary>
     Modifiers: TTuiKeyModifiers;
+
+    /// <summary>
+    ///   The character as a UTF-16 string of one or two code units, ready to
+    ///   be inserted into a text buffer. Empty when Code is not a character.
+    /// </summary>
+    function CharText: string;
 
     /// <summary>
     ///   Returns True if the key corresponds to a printable character.
@@ -225,6 +248,14 @@ type
     /// </summary>
     class function Make(ACode: TTuiKeyCode; ACharacter: Char;
       AModifiers: TTuiKeyModifiers): TTuiKeyEvent; static; inline;
+
+    /// <summary>
+    ///   Creates a TTuiKeyEvent for a full Unicode code point, including
+    ///   values beyond the BMP (emoji). Character receives the first UTF-16
+    ///   code unit of the encoded code point.
+    /// </summary>
+    class function MakeCodePoint(ACode: TTuiKeyCode; ACodePoint: TTuiCodePoint;
+      AModifiers: TTuiKeyModifiers): TTuiKeyEvent; static;
   end;
 
 { TTuiMouseButton }
@@ -331,6 +362,18 @@ const
 
 { TTuiKeyEvent }
 
+function TTuiKeyEvent.CharText: string;
+begin
+  if Code = kcSpace then
+    Exit(' ');
+  if Code <> kcChar then
+    Exit('');
+  if CodePoint <> 0 then
+    Result := TTuiUnicode.CodePointToString(CodePoint)
+  else
+    Result := Character;
+end;
+
 function TTuiKeyEvent.IsPrintable: Boolean;
 begin
   Result := (Code = kcChar) and (Character >= ' ');
@@ -356,6 +399,23 @@ class function TTuiKeyEvent.Make(ACode: TTuiKeyCode; ACharacter: Char;
 begin
   Result.Code := ACode;
   Result.Character := ACharacter;
+  if ACode in [kcChar, kcSpace] then
+    Result.CodePoint := Ord(ACharacter)
+  else
+    Result.CodePoint := 0;
+  Result.Modifiers := AModifiers;
+end;
+
+class function TTuiKeyEvent.MakeCodePoint(ACode: TTuiKeyCode;
+  ACodePoint: TTuiCodePoint; AModifiers: TTuiKeyModifiers): TTuiKeyEvent;
+begin
+  Result.Code := ACode;
+  var LText := TTuiUnicode.CodePointToString(ACodePoint);
+  if LText <> '' then
+    Result.Character := LText[1]
+  else
+    Result.Character := #0;
+  Result.CodePoint := ACodePoint;
   Result.Modifiers := AModifiers;
 end;
 

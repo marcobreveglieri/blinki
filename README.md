@@ -92,6 +92,11 @@ external dependencies, no DLLs, no design-time components, and no package to ins
 
 - 🎨 **Looks good by default** — semantic theming (Dark/Light), 24-bit true-color, and Unicode
   box-drawing with rounded/double/heavy borders.
+- 😀 **Extended emoji support** — grapheme-cluster aware rendering, measurement, and editing:
+  astral-plane emoji, ZWJ sequences (👨‍👩‍👧), skin tones (👍🏽), flags (🇮🇹), and variation
+  selectors (☀️) render as single, correctly-sized glyphs. A `:shortcode:` catalog
+  (`TTuiEmoji.Expand('deploy :rocket:')`) is included, and width rules adapt automatically to
+  the terminal's capabilities (`TTuiUnicode.EmojiLevel`).
 - 🧩 **24 built-in widgets** across six categories — from labels and buttons to tables, charts,
   dialogs, and animated effects.
 - 📐 **Constraint-based layout engine** — `VStack`, `HStack`, `Grid`, and `Scrollable` containers
@@ -100,8 +105,11 @@ external dependencies, no DLLs, no design-time components, and no package to ins
   single batched ANSI write per frame.
 - ⌨️ **Automatic focus ring** — Tab / Shift+Tab navigation handled for you; widgets just declare
   themselves focusable.
-- 🪟 **Native Windows console** — built directly on the Win32 console API and Virtual Terminal
-  sequences. All platform code is quarantined behind a single interface seam.
+- 🪟 **Native Windows console, 🐧 Linux too** — Windows builds directly on the Win32 console
+  API and Virtual Terminal sequences; Linux64 builds on termios raw mode, `poll(2)` and a
+  fully unit-tested escape-sequence decoder (arrow keys, F-keys, Shift+Tab, SGR mouse,
+  UTF-8 input). All platform code is quarantined behind a single interface seam — to build
+  for Linux, enable the Linux64 platform on your project in the IDE and deploy via PAServer.
 - 🧱 **Easy to extend** — descend from `TTuiWidget`, override `DoRender`, and you have a new widget.
 
 ---
@@ -367,7 +375,7 @@ A **full project Wiki** is under construction.
 The coding style is documented in [`STYLE_GUIDE.md`](STYLE_GUIDE.md).
 
 > [!WARNING]
-> **Blinki is highly experimental and under active, heavy development**. Breaking changes are expected at any time as the library undergoes a massive refactoring to reach high production quality. Planned work includes new widgets, evaluation of extended emoji support, comprehensive documentation, and an in-depth code review pass.
+> **Blinki is highly experimental and under active, heavy development**. Breaking changes are expected at any time as the library undergoes a massive refactoring to reach high production quality. Planned work includes new widgets, comprehensive documentation, and an in-depth code review pass.
 > Use it for experimentation and learning, but **no warranty of any kind is provided**.
 
 ---

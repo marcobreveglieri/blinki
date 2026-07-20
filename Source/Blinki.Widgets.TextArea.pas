@@ -73,15 +73,16 @@ type
     FTopLine: Integer;
     FViewHeight: Integer;
     procedure ClampCursor;
-    procedure ClampViewport(AViewWidth, AViewHeight: Integer);
+    procedure ClampViewport(ACursorCol, AViewWidth, AViewHeight: Integer);
     function  GetText: string;
-    procedure InsertChar(ACh: Char);
+    procedure InsertText(const AText: string);
     procedure RebuildStyles;
     procedure SetFocusedStyle(const AValue: TTuiStyle);
     procedure SetNormalStyle(const AValue: TTuiStyle);
     procedure SetPlaceholder(const AValue: string);
     procedure SetReadOnly(AValue: Boolean);
     procedure SetText(const AValue: string);
+    function  SnapColToBoundary(const ALine: string; ACol: Integer): Integer;
   protected
     procedure DoApplyTheme(const ATheme: TTuiTheme); override;
     function  DoHandleEvent(const AEvent: TTuiEvent): Boolean; override;
@@ -136,7 +137,9 @@ implementation
 
 uses
   System.Math,
-  Blinki.Core.Input;
+  Blinki.Core.Ansi,
+  Blinki.Core.Input,
+  Blinki.Core.Unicode;
 
 { TTuiTextArea }
 
@@ -186,9 +189,17 @@ begin
     FCursorCol := 0;
   if FCursorCol > LLineLen then
     FCursorCol := LLineLen;
+  // Moving between rows can land inside a grapheme cluster of the new line
+  // (e.g. between the two halves of an emoji): snap back to its start.
+  FCursorCol := SnapColToBoundary(FLines[FCursorRow], FCursorCol);
 end;
 
-procedure TTuiTextArea.ClampViewport(AViewWidth, AViewHeight: Integer);
+function TTuiTextArea.SnapColToBoundary(const ALine: string; ACol: Integer): Integer;
+begin
+  Result := TTuiUnicode.SnapToClusterStart(ALine, ACol + 1) - 1;
+end;
+
+procedure TTuiTextArea.ClampViewport(ACursorCol, AViewWidth, AViewHeight: Integer);
 begin
   if AViewHeight > 0 then
   begin
@@ -199,12 +210,15 @@ begin
     if FTopLine < 0 then
       FTopLine := 0;
   end;
+  // Horizontal scrolling works in terminal columns (ACursorCol is the
+  // column of the cursor, not its UTF-16 index) so wide glyphs scroll
+  // consistently with how DoRender draws them.
   if AViewWidth > 0 then
   begin
-    if FCursorCol < FLeftCol then
-      FLeftCol := FCursorCol;
-    if FCursorCol >= FLeftCol + AViewWidth then
-      FLeftCol := FCursorCol - AViewWidth + 1;
+    if ACursorCol < FLeftCol then
+      FLeftCol := ACursorCol;
+    if ACursorCol >= FLeftCol + AViewWidth then
+      FLeftCol := ACursorCol - AViewWidth + 1;
     if FLeftCol < 0 then
       FLeftCol := 0;
   end;
@@ -221,12 +235,12 @@ begin
   end;
 end;
 
-procedure TTuiTextArea.InsertChar(ACh: Char);
+procedure TTuiTextArea.InsertText(const AText: string);
 begin
   var LLine := FLines[FCursorRow];
-  Insert(ACh, LLine, FCursorCol + 1);
+  Insert(AText, LLine, FCursorCol + 1);
   FLines[FCursorRow] := LLine;
-  Inc(FCursorCol);
+  Inc(FCursorCol, Length(AText));
 end;
 
 procedure TTuiTextArea.DoRender(const ACanvas: TTuiCanvas; const ARect: TRect);
@@ -245,22 +259,37 @@ begin
   // Show placeholder when content is empty and widget is unfocused
   if (FLines.Count = 1) and (FLines[0] = '') and not Focused then
   begin
-    var LPlaceholder := Copy(FPlaceholder, 1, ARect.Width);
+    var LPlaceholder := TTuiAnsi.TruncateToWidth(FPlaceholder, ARect.Width);
     ACanvas.WriteAt(ARect.Left, ARect.Top, LPlaceholder, FPlaceholderStyle);
     Exit;
   end;
 
-  ClampViewport(ARect.Width, ARect.Height);
+  // Cursor column in terminal columns: drives both viewport clamping and
+  // cursor placement, keeping them consistent with column-based drawing.
+  var LCursorLine := FLines[FCursorRow];
+  var LCursorCol := TTuiAnsi.VisibleLength(Copy(LCursorLine, 1, FCursorCol));
+  ClampViewport(LCursorCol, ARect.Width, ARect.Height);
 
   ACanvas.PushClip(ARect);
   try
-    // Draw visible lines
+    // Draw visible lines: skip whole clusters up to FLeftCol columns, then
+    // truncate by columns, so emoji and CJK never split at either edge.
     for var LRow := 0 to ARect.Height - 1 do
     begin
       var LLineIndex := FTopLine + LRow;
       if LLineIndex >= FLines.Count then
         Break;
-      var LVisible := Copy(FLines[LLineIndex], FLeftCol + 1, ARect.Width);
+      var LLineText := FLines[LLineIndex];
+      var LSkipIndex := 1;
+      var LSkipCols := 0;
+      while (LSkipIndex <= Length(LLineText)) and (LSkipCols < FLeftCol) do
+      begin
+        var LLen := TTuiUnicode.GraphemeLengthAt(LLineText, LSkipIndex);
+        Inc(LSkipCols, TTuiUnicode.ClusterWidthAt(LLineText, LSkipIndex, LLen));
+        Inc(LSkipIndex, LLen);
+      end;
+      var LVisible := TTuiAnsi.TruncateToWidth(
+        Copy(LLineText, LSkipIndex, MaxInt), ARect.Width);
       if LVisible <> '' then
         ACanvas.WriteAt(ARect.Left, ARect.Top + LRow, LVisible, LBase);
     end;
@@ -269,20 +298,26 @@ begin
     if Focused and not FReadOnly then
     begin
       var LCursorScreenRow := FCursorRow - FTopLine;
-      var LCursorScreenCol := FCursorCol - FLeftCol;
+      var LCursorScreenCol := LCursorCol - FLeftCol;
       if (LCursorScreenRow >= 0) and (LCursorScreenRow < ARect.Height) and
          (LCursorScreenCol >= 0) and (LCursorScreenCol < ARect.Width) then
       begin
-        var LCursorLine := FLines[FCursorRow];
-        var LCursorCh: Char;
+        // Highlight the whole cluster under the cursor, not just its first
+        // code unit, so the inverse-video block covers the entire emoji.
+        var LCursorText: string;
         if FCursorCol < Length(LCursorLine) then
-          LCursorCh := LCursorLine[FCursorCol + 1]
+          LCursorText := Copy(LCursorLine, FCursorCol + 1,
+            TTuiUnicode.GraphemeLengthAt(LCursorLine, FCursorCol + 1))
         else
-          LCursorCh := ' ';
+          LCursorText := ' ';
+        // A 2-column cluster that would overflow the right edge degrades to
+        // a plain block cursor: never paint outside the widget.
+        if LCursorScreenCol + TTuiAnsi.VisibleLength(LCursorText) > ARect.Width then
+          LCursorText := ' ';
         ACanvas.WriteAt(
           ARect.Left + LCursorScreenCol,
           ARect.Top + LCursorScreenRow,
-          LCursorCh,
+          LCursorText,
           FCursorStyle);
       end;
     end;
@@ -303,10 +338,8 @@ begin
       begin
         if (AEvent.Key.Code = kcSpace) or AEvent.Key.IsPrintable then
         begin
-          if AEvent.Key.Code = kcSpace then
-            InsertChar(' ')
-          else
-            InsertChar(AEvent.Key.Character);
+          // CharText may span two code units (emoji beyond the BMP).
+          InsertText(AEvent.Key.CharText);
           if Assigned(FOnTextChanged) then
             FOnTextChanged(GetText);
           Invalidate;
@@ -335,11 +368,12 @@ begin
       begin
         if FCursorCol > 0 then
         begin
-          // Delete character to the left on the same line
+          // Delete the whole grapheme cluster to the left on the same line
           var LLine := FLines[FCursorRow];
-          Delete(LLine, FCursorCol, 1);
+          var LStart := TTuiUnicode.PrevGraphemeBoundary(LLine, FCursorCol + 1);
+          Delete(LLine, LStart, FCursorCol + 1 - LStart);
           FLines[FCursorRow] := LLine;
-          Dec(FCursorCol);
+          FCursorCol := LStart - 1;
           if Assigned(FOnTextChanged) then
             FOnTextChanged(GetText);
           Invalidate;
@@ -366,8 +400,9 @@ begin
         var LLine := FLines[FCursorRow];
         if FCursorCol < Length(LLine) then
         begin
-          // Delete character to the right on the same line
-          Delete(LLine, FCursorCol + 1, 1);
+          // Delete the whole grapheme cluster to the right on the same line
+          Delete(LLine, FCursorCol + 1,
+            TTuiUnicode.GraphemeLengthAt(LLine, FCursorCol + 1));
           FLines[FCursorRow] := LLine;
           if Assigned(FOnTextChanged) then
             FOnTextChanged(GetText);
@@ -389,7 +424,8 @@ begin
     kcLeft:
       begin
         if FCursorCol > 0 then
-          Dec(FCursorCol)
+          FCursorCol :=
+            TTuiUnicode.PrevGraphemeBoundary(FLines[FCursorRow], FCursorCol + 1) - 1
         else if FCursorRow > 0 then
         begin
           Dec(FCursorRow);
@@ -403,7 +439,8 @@ begin
       begin
         var LLineLen := Length(FLines[FCursorRow]);
         if FCursorCol < LLineLen then
-          Inc(FCursorCol)
+          FCursorCol :=
+            TTuiUnicode.NextGraphemeBoundary(FLines[FCursorRow], FCursorCol + 1) - 1
         else if FCursorRow < FLines.Count - 1 then
         begin
           Inc(FCursorRow);

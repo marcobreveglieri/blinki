@@ -464,9 +464,11 @@ begin
         if FCursorRow >= FBodyLines.Count then
           FBodyLines.Add('');
         var LLine := FBodyLines[FCursorRow];
-        Insert(LKey.Character, LLine, FCursorCol + 1);
+        // CharText may span two code units (emoji beyond the BMP)
+        var LInsert := LKey.CharText;
+        Insert(LInsert, LLine, FCursorCol + 1);
         FBodyLines[FCursorRow] := LLine;
-        Inc(FCursorCol);
+        Inc(FCursorCol, Length(LInsert));
         ScrollToCursor(LViewRows, LViewCols);
         Invalidate;
         Result := True;

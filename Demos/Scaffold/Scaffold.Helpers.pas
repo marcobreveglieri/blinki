@@ -589,7 +589,7 @@ begin
         Delete(LText, Length(LText), 1);
     end
     else if LKey.IsPrintable then
-      LText := LText + LKey.Character
+      LText := LText + LKey.CharText
     else
       Continue;
     // Redraw input line in place
