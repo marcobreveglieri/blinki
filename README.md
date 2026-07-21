@@ -208,7 +208,7 @@ with the greeting. Three pillars of Blinki in one go:
 
 > [!TIP]
 > For more real-world inspiration, browse the **16 demo apps** under [`Demos\`](Demos) and the
-> **11 smoke tests** under [`Tests\SmokeTests\`](Tests/SmokeTests). Each demo is a self-contained
+> **12 smoke tests** under [`Tests\SmokeTests\`](Tests/SmokeTests). Each demo is a self-contained
 > `.dpr` that covers a specific UI pattern — dashboards, data tables, forms, games, effects — and
 > every smoke test isolates a single framework layer with clear pass/fail output. Both are good
 > starting points when you want to see how a particular widget or layout is wired up in practice.
@@ -326,10 +326,10 @@ Blinki ships **24 built-in widgets** organized into six categories.
 
 Testing happens on two layers, both under `Tests\`:
 
-- **Unit tests (DUnitX)** — `Tests\UnitTests\BlinkiUnitTests.dproj` is a console runner that
-  executes the `[TestFixture]` suites and exits with code `0` when every test passes.
+- **Unit tests (DUnitX)** — `Tests\UnitTests\Core\Blinki.UnitTests.Core.dproj` is a console runner
+  that executes the `[TestFixture]` suites and exits with code `0` when every test passes.
 - **Smoke tests** — `Tests\SmokeTests\Blinki.SmokeTests.groupproj` bundles the runtime package plus
-  11 standalone apps, each exercising one layer of the framework and printing pass/fail criteria.
+  12 standalone apps, each exercising one layer of the framework and printing pass/fail criteria.
 
 ---
 
@@ -360,7 +360,7 @@ Blinki.Widgets.*     All 24 widget implementations
 Blinki.FX.*          Visual effects helpers (gradient, etc.)
 Demos\               16 demo applications (not part of the library)
 Tests\SmokeTests\    Per-layer smoke tests + Blinki.SmokeTests.groupproj
-Tests\UnitTests\     DUnitX unit tests (BlinkiUnitTests.dproj)
+Tests\UnitTests\     DUnitX unit tests (Tests\UnitTests\Core\Blinki.UnitTests.Core.dproj)
 ```
 
 For the full story — the event loop, the rendering pipeline, the widget contract, and the Win32
