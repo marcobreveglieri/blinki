@@ -8,6 +8,7 @@
 
 ### A pure-Delphi TUI framework for building rich, modern terminal applications on Windows.
 
+[![Version](https://img.shields.io/badge/version-1.0.0-success.svg)](https://github.com/marcobreveglieri/blinki/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Delphi](https://img.shields.io/badge/Delphi-13.1%20Florence-E62E2E.svg)](https://www.embarcadero.com/products/delphi)
 [![Platform](https://img.shields.io/badge/platform-Win32-0a7bbb.svg)](#requirements)
