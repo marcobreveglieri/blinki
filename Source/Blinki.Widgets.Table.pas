@@ -134,6 +134,13 @@ type
     FRowSelectedStyle: TTuiStyle;
     FRowSelectedFocusedStyle: TTuiStyle;
     FSepStyle: TTuiStyle;
+    // Cache for ComputeWidths: valid only for FWidthsCacheContentW and
+    // invalidated by AddColumn/AddRow/ClearRows (the only row/column
+    // mutators). Sorting does not invalidate it: reordering rows does not
+    // change any cell's visible length.
+    FWidthsCache: TArray<Integer>;
+    FWidthsCacheValid: Boolean;
+    FWidthsCacheContentW: Integer;
     procedure SetItemIndex(AValue: Integer);
     procedure SetSortColumn(AValue: Integer);
     procedure SetSortDir(AValue: TTuiTableSortDir);
@@ -296,6 +303,7 @@ begin
   Inc(FColCount);
   if FSortFocus >= FColCount then
     FSortFocus := FColCount - 1;
+  FWidthsCacheValid := False;
   Invalidate;
 end;
 
@@ -309,6 +317,7 @@ begin
   FRows.Add(LRow);
   if (FItemIndex = -1) and (FRows.Count = 1) then
     FItemIndex := 0;
+  FWidthsCacheValid := False;
   Invalidate;
 end;
 
@@ -317,6 +326,7 @@ begin
   FRows.Clear;
   FItemIndex := -1;
   FViewOffset := 0;
+  FWidthsCacheValid := False;
   Invalidate;
 end;
 
@@ -409,15 +419,27 @@ begin
 end;
 
 procedure TTuiTable.ComputeWidths(AContentW: Integer; out AWidths: TArray<Integer>);
-//var
-//  LI, LJ: Integer;
-//  LMaxW: Integer;
-//  LAssigned: Integer;
-//  LLastAuto: Integer;
 begin
+  // DoRender calls this every frame; the result only depends on FColumns,
+  // FRows content and AContentW (see the field comment), so a cache keyed on
+  // AContentW avoids rescanning every row with TTuiAnsi.VisibleLength when
+  // nothing relevant has changed. AWidths aliases the cached array (dynamic
+  // arrays are reference-counted) — callers must treat it as read-only,
+  // which DoRender already does.
+  if FWidthsCacheValid and (FWidthsCacheContentW = AContentW) then
+  begin
+    AWidths := FWidthsCache;
+    Exit;
+  end;
+
   SetLength(AWidths, FColCount);
   if FColCount = 0 then
+  begin
+    FWidthsCache := AWidths;
+    FWidthsCacheContentW := AContentW;
+    FWidthsCacheValid := True;
     Exit;
+  end;
 
   var LSepTotal := Max(0, FColCount - 1);
   var LFixedSumW := 0;
@@ -473,6 +495,10 @@ begin
         AWidths[LLastAuto] := 1;
     end;
   end;
+
+  FWidthsCache := AWidths;
+  FWidthsCacheContentW := AContentW;
+  FWidthsCacheValid := True;
 end;
 
 procedure TTuiTable.SetItemIndex(AValue: Integer);

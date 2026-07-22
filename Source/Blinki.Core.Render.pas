@@ -215,6 +215,17 @@ type
     ///   Raises ETuiRenderError if the coordinates are out of bounds.
     /// </summary>
     property Cells[AX, AY: Integer]: TTuiCell read GetCell write SetCell; default;
+    /// <summary>
+    ///   Direct read access by 0-based coordinates, without bounds checking.
+    ///   For hot loops that already guarantee valid coordinates (the canvas
+    ///   diff/fill loops); use Cells[] instead when bounds are not pre-validated.
+    /// </summary>
+    function GetCellUnchecked(AX, AY: Integer): TTuiCell; inline;
+    /// <summary>
+    ///   Direct write access by 0-based coordinates, without bounds checking.
+    ///   See GetCellUnchecked.
+    /// </summary>
+    procedure SetCellUnchecked(AX, AY: Integer; const AValue: TTuiCell); inline;
   end;
 
 implementation
@@ -395,6 +406,16 @@ end;
 procedure TTuiFrameBuffer.SetCell(AX, AY: Integer; const AValue: TTuiCell);
 begin
   RaiseIfOutOfBounds(AX, AY);
+  FCells[AY * FWidth + AX] := AValue;
+end;
+
+function TTuiFrameBuffer.GetCellUnchecked(AX, AY: Integer): TTuiCell;
+begin
+  Result := FCells[AY * FWidth + AX];
+end;
+
+procedure TTuiFrameBuffer.SetCellUnchecked(AX, AY: Integer; const AValue: TTuiCell);
+begin
   FCells[AY * FWidth + AX] := AValue;
 end;
 

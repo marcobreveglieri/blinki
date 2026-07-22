@@ -43,6 +43,7 @@ interface
 
 uses
   System.Generics.Collections,
+  System.SysUtils,
   System.Types,
   Blinki.Core.Ansi,
   Blinki.Core.Console,
@@ -73,6 +74,9 @@ type
     FBackHasGlyphSpans: Boolean;
     FDirty: Boolean;
     FClipStack: TStack<TRect>;
+    // Reused across Flush calls to avoid a Width * Height * 8 allocation
+    // (and Free) on every frame; BuildFlushSequence just Clears it.
+    FFlushBuilder: TStringBuilder;
     procedure BlankGlyphSpan(AX, AY: Integer);
     function  GetWidth: Integer; inline;
     function  GetHeight: Integer; inline;
@@ -177,7 +181,6 @@ implementation
 
 uses
   System.Math,
-  System.SysUtils,
   Blinki.Core.Unicode;
 
 { TTuiCanvas }
@@ -190,12 +193,15 @@ begin
   var LSize := FBackend.GetSize;
   FFront := TTuiFrameBuffer.Create(LSize.cx, LSize.cy);
   FBack := TTuiFrameBuffer.Create(LSize.cx, LSize.cy);
+  FFlushBuilder := TStringBuilder.Create(LSize.cx * LSize.cy * 8);
 end;
 
 destructor TTuiCanvas.Destroy;
 begin
   if Assigned(FClipStack) then
     FreeAndNil(FClipStack);
+  if Assigned(FFlushBuilder) then
+    FreeAndNil(FFlushBuilder);
   if Assigned(FBack) then
     FreeAndNil(FBack);
   if Assigned(FFront) then
@@ -231,16 +237,16 @@ begin
   // than corrupting the neighbor's buffer).
   var LClip := ActiveClipRect;
   var LStart := AX;
-  while (LStart > 0) and FBack[LStart, AY].IsContinuation do
+  while (LStart > 0) and FBack.GetCellUnchecked(LStart, AY).IsContinuation do
     Dec(LStart);
   var LEnd := AX + 1;
-  while (LEnd < FBack.Width) and FBack[LEnd, AY].IsContinuation do
+  while (LEnd < FBack.Width) and FBack.GetCellUnchecked(LEnd, AY).IsContinuation do
     Inc(LEnd);
   if LEnd - LStart <= 1 then
     Exit;
   for var LFix := LStart to LEnd - 1 do
     if (LFix <> AX) and (LFix >= LClip.Left) and (LFix < LClip.Right) then
-      FBack[LFix, AY] := TTuiCell.Make(' ', FBack[LFix, AY].Style);
+      FBack.SetCellUnchecked(LFix, AY, TTuiCell.Make(' ', FBack.GetCellUnchecked(LFix, AY).Style));
 end;
 
 procedure TTuiCanvas.WriteCell(AX, AY: Integer; const ACell: TTuiCell);
@@ -251,13 +257,15 @@ begin
   begin
     // The neighbor probe is only needed when some continuation cell has been
     // written since the last full clear; plain ASCII frames skip it entirely.
+    // AX/AY are already validated against LClip (a sub-rect of the buffer),
+    // so the unchecked accessors below are safe.
     if FBackHasGlyphSpans and
-       (FBack[AX, AY].IsContinuation or
-        ((AX + 1 < FBack.Width) and FBack[AX + 1, AY].IsContinuation)) then
+       (FBack.GetCellUnchecked(AX, AY).IsContinuation or
+        ((AX + 1 < FBack.Width) and FBack.GetCellUnchecked(AX + 1, AY).IsContinuation)) then
       BlankGlyphSpan(AX, AY);
     if ACell.IsContinuation then
       FBackHasGlyphSpans := True;
-    FBack[AX, AY] := ACell;
+    FBack.SetCellUnchecked(AX, AY, ACell);
     FDirty := True;
   end;
 end;
@@ -276,12 +284,14 @@ begin
   var LRect := ClampRect(ARect);
   if LRect.IsEmpty then
     Exit;
+  // LRect is already clamped to the buffer bounds, so the unchecked
+  // accessors below are safe.
   for var LY := LRect.Top to LRect.Bottom - 1 do
     for var LX := LRect.Left to LRect.Right - 1 do
     begin
-      var LCell := FBack[LX, LY];
+      var LCell := FBack.GetCellUnchecked(LX, LY);
       LCell.Style.Attributes := LCell.Style.Attributes + [taDim];
-      FBack[LX, LY] := LCell;
+      FBack.SetCellUnchecked(LX, LY, LCell);
     end;
   FDirty := True;
 end;
@@ -377,8 +387,10 @@ begin
     WriteCell(LRect.Left, LY, LCell);
     if LRect.Right - 1 > LRect.Left then
       WriteCell(LRect.Right - 1, LY, LCell);
+    // Interior columns are within LRect (already clamped to the buffer),
+    // so the unchecked writer is safe here.
     for var LX := LRect.Left + 1 to LRect.Right - 2 do
-      FBack[LX, LY] := LCell;
+      FBack.SetCellUnchecked(LX, LY, LCell);
   end;
   FDirty := True;
 end;
@@ -453,83 +465,85 @@ end;
 
 function TTuiCanvas.BuildFlushSequence: string;
 begin
-  var LBuilder := TStringBuilder.Create(FBack.Width * FBack.Height * 8);
-  try
-    var LHasChanges := False;
-    var LLastX := -2;
-    var LLastY := -1;
-    var LLastStyle := TTuiStyle.Default;
+  // Reused across frames (see FFlushBuilder) instead of allocating a new
+  // Width * Height * 8 builder on every flush.
+  var LBuilder := FFlushBuilder;
+  LBuilder.Clear;
 
-    for var LY := 0 to FBack.Height - 1 do
-      for var LX := 0 to FBack.Width - 1 do
+  var LHasChanges := False;
+  var LLastX := -2;
+  var LLastY := -1;
+  var LLastStyle := TTuiStyle.Default;
+
+  // The loop bounds guarantee LX/LY (and LHeadX below) stay within the
+  // buffer, so the unchecked accessors are safe here.
+  for var LY := 0 to FBack.Height - 1 do
+    for var LX := 0 to FBack.Width - 1 do
+    begin
+      var LCell := FBack.GetCellUnchecked(LX, LY);
+      if LCell = FFront.GetCellUnchecked(LX, LY) then
+        Continue;
+
+      var LEmitX := LX;
+      if LCell.IsContinuation then
       begin
-        var LCell := FBack[LX, LY];
-        if LCell = FFront[LX, LY] then
-          Continue;
-
-        var LEmitX := LX;
-        if LCell.IsContinuation then
-        begin
-          // Continuations are never emitted: the head glyph covers their
-          // column. If the head cell itself is unchanged (so it was skipped
-          // by the diff), re-emit it to repaint the whole glyph.
-          var LHeadX := LX;
-          while (LHeadX > 0) and FBack[LHeadX, LY].IsContinuation do
-            Dec(LHeadX);
-          if FBack[LHeadX, LY].IsContinuation or
-             (FBack[LHeadX, LY] <> FFront[LHeadX, LY]) then
-            Continue; // no head, or head already emitted this frame
-          LEmitX := LHeadX;
-          LCell := FBack[LHeadX, LY];
-        end;
-
-        if not LHasChanges then
-        begin
-          // Initial reset: ensures a known terminal state before the first character
-          LBuilder.Append(TTuiAnsi.Reset);
-          LHasChanges := True;
-        end;
-
-        // CursorTo only if not in the cell adjacent to the previous one
-        if (LY <> LLastY) or (LEmitX <> LLastX + 1) then
-          LBuilder.Append(TTuiAnsi.CursorTo(LY + 1, LEmitX + 1));
-
-        LBuilder.Append(TTuiAnsi.ApplyStyleDelta(LLastStyle, LCell.Style));
-        // Plain cells append the Char directly (no string allocation on the
-        // hot diff loop); only cluster cells resolve their interned text.
-        if LCell.ClusterId = 0 then
-          LBuilder.Append(LCell.Character)
-        else
-          LBuilder.Append(TTuiClusterPool.Resolve(LCell.ClusterId));
-
-        if LCell.ClusterId <> 0 then
-          // Terminals disagree on the cursor advance of emoji sequences
-          // (ZWJ, VS16, flags): always resync with an explicit CursorTo
-          // after a cluster so alignment self-heals.
-          LLastX := -2
-        else if LCell.Width = 2 then
-        begin
-          // A BMP emoji drawn wide by our tables may advance only 1 column
-          // on legacy hosts: resync like a cluster. CJK EAW-wide advance is
-          // reliable everywhere, so keep the cheap adjacency bookkeeping.
-          if TTuiUnicode.IsEmojiPresentation(Ord(LCell.Character)) then
-            LLastX := -2
-          else
-            LLastX := LEmitX + 1;
-        end
-        else
-          LLastX := LEmitX;
-        LLastY := LY;
-        LLastStyle := LCell.Style;
+        // Continuations are never emitted: the head glyph covers their
+        // column. If the head cell itself is unchanged (so it was skipped
+        // by the diff), re-emit it to repaint the whole glyph.
+        var LHeadX := LX;
+        while (LHeadX > 0) and FBack.GetCellUnchecked(LHeadX, LY).IsContinuation do
+          Dec(LHeadX);
+        if FBack.GetCellUnchecked(LHeadX, LY).IsContinuation or
+           (FBack.GetCellUnchecked(LHeadX, LY) <> FFront.GetCellUnchecked(LHeadX, LY)) then
+          Continue; // no head, or head already emitted this frame
+        LEmitX := LHeadX;
+        LCell := FBack.GetCellUnchecked(LHeadX, LY);
       end;
 
-    if LHasChanges then
-      LBuilder.Append(TTuiAnsi.Reset);
+      if not LHasChanges then
+      begin
+        // Initial reset: ensures a known terminal state before the first character
+        LBuilder.Append(TTuiAnsi.Reset);
+        LHasChanges := True;
+      end;
 
-    Result := LBuilder.ToString;
-  finally
-    LBuilder.Free;
-  end;
+      // CursorTo only if not in the cell adjacent to the previous one
+      if (LY <> LLastY) or (LEmitX <> LLastX + 1) then
+        LBuilder.Append(TTuiAnsi.CursorTo(LY + 1, LEmitX + 1));
+
+      LBuilder.Append(TTuiAnsi.ApplyStyleDelta(LLastStyle, LCell.Style));
+      // Plain cells append the Char directly (no string allocation on the
+      // hot diff loop); only cluster cells resolve their interned text.
+      if LCell.ClusterId = 0 then
+        LBuilder.Append(LCell.Character)
+      else
+        LBuilder.Append(TTuiClusterPool.Resolve(LCell.ClusterId));
+
+      if LCell.ClusterId <> 0 then
+        // Terminals disagree on the cursor advance of emoji sequences
+        // (ZWJ, VS16, flags): always resync with an explicit CursorTo
+        // after a cluster so alignment self-heals.
+        LLastX := -2
+      else if LCell.Width = 2 then
+      begin
+        // A BMP emoji drawn wide by our tables may advance only 1 column
+        // on legacy hosts: resync like a cluster. CJK EAW-wide advance is
+        // reliable everywhere, so keep the cheap adjacency bookkeeping.
+        if TTuiUnicode.IsEmojiPresentation(Ord(LCell.Character)) then
+          LLastX := -2
+        else
+          LLastX := LEmitX + 1;
+      end
+      else
+        LLastX := LEmitX;
+      LLastY := LY;
+      LLastStyle := LCell.Style;
+    end;
+
+  if LHasChanges then
+    LBuilder.Append(TTuiAnsi.Reset);
+
+  Result := LBuilder.ToString;
 end;
 
 procedure TTuiCanvas.Flush;

@@ -135,6 +135,7 @@ type
     FOnResize: TTuiResizeHandler;
     FTheme: TTuiTheme;
     procedure SetTheme(const AValue: TTuiTheme);
+    procedure SetModalDim(AValue: Boolean);
     procedure SetupTerminal;
     procedure TeardownTerminal;
     procedure InitializeRunState;
@@ -152,6 +153,8 @@ type
     function GetModalActive: Boolean;
     function GetModalCount: Integer;
     procedure PollResize;
+    // True when the root or any modal overlay needs to be redrawn this tick.
+    function NeedsRender: Boolean;
     procedure RenderFrame;
   public
     /// <summary>
@@ -269,7 +272,7 @@ type
     ///   Set to False to show only the modal border/shadow without dimming.
     ///   Default: True.
     /// </summary>
-    property ModalDim: Boolean read FModalDim write FModalDim;
+    property ModalDim: Boolean read FModalDim write SetModalDim;
 
     /// <summary>
     ///   When True (default), the global OnKeyPress handler is suppressed while
@@ -331,6 +334,16 @@ begin
   FTheme := AValue;
   if Assigned(FRoot) then
     FRoot.ApplyTheme(FTheme);
+end;
+
+procedure TTuiApp.SetModalDim(AValue: Boolean);
+begin
+  if FModalDim = AValue then
+    Exit;
+  FModalDim := AValue;
+  // Toggling this alone does not touch any widget's FDirty: invalidate
+  // explicitly so the dirty-skip in RenderFrame does not hide the change.
+  Invalidate;
 end;
 
 procedure TTuiApp.SetRoot(AWidget: TTuiWidget; AOwnsRoot: Boolean);
@@ -536,8 +549,23 @@ begin
     FOnResize(LSize);
 end;
 
+function TTuiApp.NeedsRender: Boolean;
+begin
+  if FRoot.Dirty then
+    Exit(True);
+  for var LIdx := 0 to FModalStack.Count - 1 do
+    if FModalStack[LIdx].Widget.Dirty then
+      Exit(True);
+  Result := False;
+end;
+
 procedure TTuiApp.RenderFrame;
 begin
+  // PollResize invalidates the root (and modals) on a resize, so a clean tree
+  // here means the screen already matches what was last flushed: skip the
+  // whole Clear + Render + Flush pass instead of redoing it for nothing.
+  if not NeedsRender then
+    Exit;
   FCanvas.Clear;
   var LFullRect := TRect.Create(0, 0, FCanvas.Width, FCanvas.Height);
   FRoot.Render(FCanvas, LFullRect);
